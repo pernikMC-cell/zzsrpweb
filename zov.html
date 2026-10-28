@@ -726,6 +726,7 @@
     // AUTENTICKÝ ZVUK ČESKÉ ZZS (GONG ZÁKLADNY + PAGER 2730 Hz)
     // =========================================================
     let pagerInterval = null;
+    let pagerTimeout = null;
     let audioCtx = null;
     let incomingCallCache = null;
 
@@ -801,15 +802,17 @@
     function startPagerAlarm() {
       stopPagerAlarm();
       playZzsStationGong();
-      setTimeout(() => {
-        if (pagerInterval !== null) {
-          playSinglePagerBurst();
-        }
-      }, 1150);
-      pagerInterval = setInterval(playSinglePagerBurst, 1600);
+      pagerTimeout = setTimeout(() => {
+        playSinglePagerBurst();
+        pagerInterval = setInterval(playSinglePagerBurst, 1600);
+      }, 1200);
     }
 
     function stopPagerAlarm() {
+      if (pagerTimeout) {
+        clearTimeout(pagerTimeout);
+        pagerTimeout = null;
+      }
       if (pagerInterval) {
         clearInterval(pagerInterval);
         pagerInterval = null;
@@ -817,9 +820,7 @@
     }
 
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const SERVER_URL = isLocal 
-      ? (window.location.protocol + '//' + window.location.hostname + (window.location.port ? ':' + window.location.port : ':2584'))
-      : window.location.origin;
+    const SERVER_URL = "https://37.60.241.137:2584";
 
     let socket = null;
     try {

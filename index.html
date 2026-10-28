@@ -12,12 +12,18 @@
       --portal-text: #1b2a3a;
       --card-bg: #ffffff;
       --card-border: #d7dee7;
+      --input-bg: #ffffff;
+      --input-text: #111827;
+      --input-border: #cbd5e1;
     }
     html.dark {
       --portal-bg: #0b1329;
       --portal-text: #f1f5f9;
       --card-bg: #1e293b;
       --card-border: #334155;
+      --input-bg: #0f172a;
+      --input-text: #f8fafc;
+      --input-border: #475569;
     }
     body { 
       background-color: var(--portal-bg); 
@@ -35,6 +41,17 @@
     .card-link { transition: transform 0.15s ease, box-shadow 0.15s ease; }
     .card-link:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(21, 43, 67, 0.12); }
 
+    .modal-input {
+      background-color: var(--input-bg);
+      color: var(--input-text);
+      border: 1px solid var(--input-border);
+    }
+    .modal-input:focus {
+      border-color: #38bdf8;
+      outline: none;
+      box-shadow: 0 0 0 1px #38bdf8;
+    }
+
     @keyframes pulse-border {
       0%, 100% { border-color: #ef4444; box-shadow: 0 0 25px rgba(239, 68, 68, 0.7); }
       50% { border-color: #f59e0b; box-shadow: 0 0 40px rgba(245, 158, 11, 0.9); }
@@ -48,7 +65,7 @@
 
   <!-- Horní lišta -->
   <header class="border-b-[3px] border-[#c4161c] bg-[#152b43] text-white px-4 py-3">
-    <div class="mx-auto flex max-w-5xl items-center justify-between">
+    <div class="mx-auto flex max-w-6xl items-center justify-between">
       <div class="flex items-center gap-3">
         <span class="grid size-9 place-items-center rounded bg-[#c4161c] text-white font-bold text-lg">🚑</span>
         <span class="font-bold text-lg">ZZS PrahaRP</span>
@@ -59,6 +76,9 @@
         </button>
         <a href="dispecink.html" class="bg-amber-600 hover:bg-amber-700 px-3 py-1.5 rounded text-xs font-bold text-white transition">
           📻 Dispečink ZOS
+        </a>
+        <a href="lekarska.html" class="bg-purple-700 hover:bg-purple-800 px-3 py-1.5 rounded text-xs font-bold text-white transition">
+          🩺 Lékař / Koroner
         </a>
         <button onclick="openShiftModal()" id="btn-header-shift" class="bg-white/10 hover:bg-white/20 border border-white/20 px-3 py-1.5 rounded text-xs font-semibold text-white transition">
           🚑 Nástup do služby
@@ -73,7 +93,7 @@
     </div>
   </header>
 
-  <main class="mx-auto w-full max-w-5xl flex-1 px-4 py-6 flex flex-col gap-6">
+  <main class="mx-auto w-full max-w-6xl flex-1 px-4 py-6 flex flex-col gap-6">
 
     <!-- Stav směny -->
     <div class="panel p-4 flex items-center justify-between border-blue-400/40">
@@ -89,16 +109,18 @@
       </button>
     </div>
 
-    <!-- Karty modulů -->
-    <div class="grid gap-4 md:grid-cols-4">
+    <!-- Karty všech 5 modulů -->
+    <div class="grid gap-4 md:grid-cols-5">
+      <!-- 1. Dispečink ZOS -->
       <article class="panel card-link p-5 border-amber-500/40 flex flex-col justify-between">
         <div>
           <h2 class="font-bold text-base text-amber-500 mb-1">Dispečink ZOS (155)</h2>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Příjem tísňových hovorů, volba posádky a odeslání výzvy na pager.</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Příjem tísňových hovorů, vyslání posádek, koronera nebo samotného dispečera.</p>
         </div>
         <a href="dispecink.html" class="bg-amber-600 hover:bg-amber-700 text-white text-center py-2 rounded text-xs font-bold transition">Otevřít ZOS CAD →</a>
       </article>
 
+      <!-- 2. EKP / ZOV -->
       <article class="panel card-link p-5 flex flex-col justify-between">
         <div>
           <h2 class="font-bold text-base text-sky-600 dark:text-sky-400 mb-1">Vypsat ZOV (EKP)</h2>
@@ -107,6 +129,16 @@
         <a href="zov.html" class="bg-[#152b43] hover:bg-[#0e1f31] text-white text-center py-2 rounded text-xs font-semibold transition">Otevřít EKP →</a>
       </article>
 
+      <!-- 3. Lékařská zpráva & Koroner -->
+      <article class="panel card-link p-5 border-purple-500/40 flex flex-col justify-between">
+        <div>
+          <h2 class="font-bold text-base text-purple-600 dark:text-purple-400 mb-1">Lékař & Koroner</h2>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Protokol o ohledání zemřelého (koroner) a lékařská zpráva s příjmem z pageru.</p>
+        </div>
+        <a href="lekarska.html" class="bg-purple-700 hover:bg-purple-800 text-white text-center py-2 rounded text-xs font-bold transition">Otevřít Koronera →</a>
+      </article>
+
+      <!-- 4. Negativní reverz -->
       <article class="panel card-link p-5 flex flex-col justify-between">
         <div>
           <h2 class="font-bold text-base text-red-500 mb-1">Negativní reverz</h2>
@@ -115,10 +147,11 @@
         <a href="reverz.html" class="bg-[#152b43] hover:bg-[#0e1f31] text-white text-center py-2 rounded text-xs font-semibold transition">Vypsat reverz →</a>
       </article>
 
+      <!-- 5. Kniha výjezdů -->
       <article class="panel card-link p-5 border-blue-400/30 flex flex-col justify-between">
         <div>
           <h2 class="font-bold text-base text-sky-600 dark:text-sky-400 mb-1">Kniha výjezdů</h2>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Centrální archiv všech výjezdů v databázi s možností tisku.</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Centrální archiv všech výjezdů, zpráv koronera a reverzů v databázi.</p>
         </div>
         <a href="archiv.html" class="bg-[#152b43] hover:bg-[#0e1f31] text-white text-center py-2 rounded text-xs font-semibold transition">Otevřít knihu →</a>
       </article>
@@ -132,7 +165,7 @@
         <div class="flex items-center gap-2.5">
           <span class="text-2xl animate-bounce">🚨</span>
           <div>
-            <h3 class="font-extrabold text-base tracking-wide uppercase">Tísňová výzva ZOS – Výjezd!</h3>
+            <h3 class="font-extrabold text-base tracking-wide uppercase" id="pg-header-title">Tísňová výzva ZOS – Výjezd!</h3>
             <p class="text-xs text-red-100 font-mono" id="pg-id">VÝZVA: -</p>
           </div>
         </div>
@@ -140,14 +173,18 @@
       </div>
 
       <div class="p-5 space-y-3 text-sm">
-        <div class="flex items-center justify-between bg-slate-800 p-3 rounded-lg border border-slate-700">
+        <div class="grid grid-cols-3 gap-2 bg-slate-800 p-3 rounded-lg border border-slate-700">
           <div>
-            <span class="text-[11px] uppercase text-slate-400 block font-bold">Vysílaná posádka</span>
-            <span class="font-extrabold text-base text-sky-400" id="pg-vehicle">-</span>
+            <span class="text-[11px] uppercase text-slate-400 block font-bold">Posádka</span>
+            <span class="font-extrabold text-sm text-sky-400" id="pg-vehicle">-</span>
+          </div>
+          <div class="text-center">
+            <span class="text-[11px] uppercase text-slate-400 block font-bold">Charakter</span>
+            <span class="font-bold text-sm text-emerald-400" id="pg-charakter">-</span>
           </div>
           <div class="text-right">
             <span class="text-[11px] uppercase text-slate-400 block font-bold">Naléhavost</span>
-            <span class="font-bold text-amber-400" id="pg-priority">-</span>
+            <span class="font-bold text-sm text-amber-400" id="pg-priority">-</span>
           </div>
         </div>
 
@@ -163,7 +200,7 @@
 
         <div class="grid grid-cols-2 gap-2 text-xs bg-slate-800/60 p-3 rounded-lg border border-slate-700">
           <div>
-            <span class="text-slate-400 block font-semibold">Pacient:</span>
+            <span class="text-slate-400 block font-semibold">Pacient / Osoba:</span>
             <strong class="text-white" id="pg-patient">-</strong>
           </div>
           <div>
@@ -178,14 +215,14 @@
 
         <div class="pt-3">
           <button type="button" onclick="acceptDispatchCall()" class="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white font-extrabold text-base py-3.5 px-4 rounded-lg shadow-lg flex items-center justify-center gap-2 transition cursor-pointer">
-            <span>✅ PŘIJMOUT VÝZVU A OTEVŘÍT EKP</span>
+            <span id="pg-accept-btn-text">✅ PŘIJMOUT VÝZVU A OTEVŘÍT KARTU</span>
           </button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- MODÁL PŘIHLÁŠENÍ DO SLUŽBY -->
+  <!-- MODÁL PŘIHLÁŠENÍ DO SLUŽBY (OPRAVENÝ KONTRAST V TMAVÉM REŽIMU) -->
   <div id="modal-shift" class="fixed inset-0 z-40 hidden items-center justify-center bg-black/60 p-4">
     <div class="rounded-lg shadow-xl w-full max-w-md overflow-hidden flex flex-col border" style="background-color: var(--card-bg); border-color: var(--card-border);">
       <div class="bg-[#152b43] text-white px-4 py-3 flex items-center justify-between">
@@ -195,39 +232,41 @@
 
       <div class="p-4 flex flex-col gap-3 text-xs">
         <div>
-          <label class="font-bold block mb-1 text-sky-600 dark:text-sky-400">Vozidlo / Volací znak *</label>
-          <input type="text" id="sh-vehicle" placeholder="např. RZP-110 (Crafter)" class="w-full border rounded px-2.5 py-1.5 outline-none dark:bg-slate-800 dark:border-slate-600">
+          <label class="font-bold block mb-1 text-sky-500">Vozidlo / Volací znak *</label>
+          <input type="text" id="sh-vehicle" placeholder="např. RZP-110, KORONER-1, IP-100, ZOS-1" class="modal-input w-full rounded px-2.5 py-1.5 font-semibold">
         </div>
         <div class="grid grid-cols-2 gap-2">
           <div>
-            <label class="font-bold block mb-1 text-sky-600 dark:text-sky-400">Typ posádky *</label>
-            <select id="sh-type" class="w-full border rounded px-2 py-1.5 dark:bg-slate-800 dark:border-slate-600">
-              <option value="RZP">RZP</option>
-              <option value="RLP">RLP</option>
-              <option value="RV">RV</option>
-              <option value="LZS">LZS</option>
+            <label class="font-bold block mb-1 text-sky-500">Typ posádky *</label>
+            <select id="sh-type" class="modal-input w-full rounded px-2 py-1.5 font-semibold">
+              <option value="RZP">RZP (Zdravotnická pomoc)</option>
+              <option value="RLP">RLP (Lékařská pomoc)</option>
+              <option value="RV">RV (Rendez-Vous lékař)</option>
+              <option value="IP">IP (Inspektor provozu)</option>
+              <option value="KORONER">KORONER (Ohledávající lékař)</option>
+              <option value="ZOS">ZOS (Výjezd dispečera)</option>
             </select>
           </div>
           <div>
-            <label class="font-bold block mb-1 text-sky-600 dark:text-sky-400">Základna *</label>
-            <input type="text" id="sh-base" placeholder="např. Nádražní" class="w-full border rounded px-2.5 py-1.5 dark:bg-slate-800 dark:border-slate-600">
+            <label class="font-bold block mb-1 text-sky-500">Základna *</label>
+            <input type="text" id="sh-base" placeholder="např. Nádražní" class="modal-input w-full rounded px-2.5 py-1.5">
           </div>
         </div>
         <div>
-          <label class="font-bold block mb-1 text-sky-600 dark:text-sky-400">Zdravotnický záchranář (Vedoucí VS) *</label>
-          <input type="text" id="sh-paramedic" placeholder="Jméno a příjmení" class="w-full border rounded px-2.5 py-1.5 dark:bg-slate-800 dark:border-slate-600">
+          <label class="font-bold block mb-1 text-sky-500">Vedoucí VS (Záchranář / Lékař / Inspektor / Dispečer) *</label>
+          <input type="text" id="sh-paramedic" placeholder="Jméno a příjmení" class="modal-input w-full rounded px-2.5 py-1.5 font-semibold">
         </div>
         <div>
-          <label class="font-bold block mb-1 text-sky-600 dark:text-sky-400">Řidič záchranář</label>
-          <input type="text" id="sh-driver" placeholder="Jméno řidiče" class="w-full border rounded px-2.5 py-1.5 dark:bg-slate-800 dark:border-slate-600">
+          <label class="font-bold block mb-1 text-sky-500">Řidič / Člen posádky</label>
+          <input type="text" id="sh-driver" placeholder="Jméno řidiče / člena" class="modal-input w-full rounded px-2.5 py-1.5">
         </div>
 
         <div class="flex items-center justify-between pt-2 border-t mt-2" style="border-color: var(--card-border);">
-          <button type="button" onclick="endShift()" id="btn-end-shift" class="hidden px-3 py-1.5 bg-red-100 text-red-700 rounded font-semibold">
+          <button type="button" onclick="endShift()" id="btn-end-shift" class="hidden px-3 py-1.5 bg-red-600/20 text-red-400 border border-red-500/40 hover:bg-red-600/30 rounded font-semibold transition">
             Ukončit službu
           </button>
           <div class="flex items-center gap-2 ml-auto">
-            <button type="button" onclick="closeShiftModal()" class="px-3 py-1.5 border rounded dark:border-slate-600">Zrušit</button>
+            <button type="button" onclick="closeShiftModal()" class="px-3 py-1.5 border rounded hover:opacity-80 transition" style="border-color: var(--input-border);">Zrušit</button>
             <button type="button" onclick="saveShift()" class="px-4 py-1.5 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition">
               Zahájit službu
             </button>
@@ -247,259 +286,4 @@
       const html = document.documentElement;
       const icon = document.getElementById('theme-icon');
       if (theme === 'dark') {
-        html.classList.add('dark');
-        html.classList.remove('light');
-        if (icon) icon.textContent = '☀️';
-      } else {
-        html.classList.remove('dark');
-        html.classList.add('light');
-        if (icon) icon.textContent = '🌙';
-      }
-      localStorage.setItem('zzs_theme', theme);
-    }
-
-    function toggleTheme() {
-      const isDark = document.documentElement.classList.contains('dark');
-      applyTheme(isDark ? 'light' : 'dark');
-    }
-
-    // =========================================================
-    // AUTENTICKÝ ZVUK ČESKÉ ZZS (GONG ZÁKLADNY + PAGER 2730 Hz)
-    // =========================================================
-    let pagerInterval = null;
-    let audioCtx = null;
-    let pendingCallData = null;
-
-    function ensureAudioContext() {
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
-    }
-
-    // 1. Úvodní třítónový výjezdový gong ze základny ZZS (G5 -> E5 -> C5)
-    function playZzsStationGong() {
-      try {
-        ensureAudioContext();
-        const now = audioCtx.currentTime;
-        const gongNotes = [
-          { freq: 783.99, start: 0.00, dur: 0.30 }, // G5
-          { freq: 659.25, start: 0.28, dur: 0.30 }, // E5
-          { freq: 523.25, start: 0.56, dur: 0.55 }  // C5
-        ];
-
-        gongNotes.forEach(note => {
-          const osc = audioCtx.createOscillator();
-          const gain = audioCtx.createGain();
-          osc.type = 'triangle';
-          osc.frequency.setValueAtTime(note.freq, now + note.start);
-
-          gain.gain.setValueAtTime(0.25, now + note.start);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + note.start + note.dur);
-
-          osc.connect(gain);
-          gain.connect(audioCtx.destination);
-          osc.start(now + note.start);
-          osc.stop(now + note.start + note.dur);
-        });
-      } catch (e) {
-        console.warn('Nelze přehrát gong ZZS:', e);
-      }
-    }
-
-    // 2. Typická kadence českého pageru ZZS (Swissphone / Motorola: 2x 4 rychlá pípnutí na 2730 Hz)
-    function playSinglePagerBurst() {
-      try {
-        ensureAudioContext();
-        const now = audioCtx.currentTime;
-        const beepOffsets = [
-          0.00, 0.09, 0.18, 0.27, // 1. čtveřice
-          0.52, 0.61, 0.70, 0.79  // 2. čtveřice
-        ];
-
-        beepOffsets.forEach((offset) => {
-          const osc = audioCtx.createOscillator();
-          const gain = audioCtx.createGain();
-          osc.type = 'square';
-          osc.frequency.setValueAtTime(2730, now + offset);
-
-          gain.gain.setValueAtTime(0.16, now + offset);
-          gain.gain.setValueAtTime(0.16, now + offset + 0.05);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.065);
-
-          osc.connect(gain);
-          gain.connect(audioCtx.destination);
-          osc.start(now + offset);
-          osc.stop(now + offset + 0.065);
-        });
-      } catch (e) {
-        console.warn('Zvuk pageru nelze přehrát:', e);
-      }
-    }
-
-    function startPagerAlarm() {
-      stopPagerAlarm();
-      playZzsStationGong();
-      setTimeout(() => {
-        if (pagerInterval !== null) {
-          playSinglePagerBurst();
-        }
-      }, 1150);
-      pagerInterval = setInterval(playSinglePagerBurst, 1600);
-    }
-
-    function stopPagerAlarm() {
-      if (pagerInterval) {
-        clearInterval(pagerInterval);
-        pagerInterval = null;
-      }
-    }
-
-    function testPagerSound() {
-      playZzsStationGong();
-      setTimeout(playSinglePagerBurst, 1150);
-    }
-
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const SERVER_URL = isLocal 
-      ? (window.location.protocol + '//' + window.location.hostname + (window.location.port ? ':' + window.location.port : ':2584'))
-      : window.location.origin;
-
-    const socket = io(SERVER_URL, { transports: ['websocket', 'polling'] });
-
-    function getActiveShift() {
-      try { return JSON.parse(localStorage.getItem('zzs_active_shift') || 'null'); } catch(e) { return null; }
-    }
-
-    socket.on('dispatch:incoming', (call) => {
-      const shift = getActiveShift();
-      if (shift && shift.active && shift.vehicle === call.vehicle) {
-        pendingCallData = call;
-        
-        document.getElementById('pg-id').textContent = 'VÝZVA: ' + (call.id || '-');
-        document.getElementById('pg-time').textContent = call.time || '--:--';
-        document.getElementById('pg-vehicle').textContent = `${call.vehicle} (${call.crewType || 'RZP'})`;
-        document.getElementById('pg-priority').textContent = call.priority || 'II. Stupeň';
-        document.getElementById('pg-location').textContent = call.location || 'Neuvedeno';
-        document.getElementById('pg-indication').textContent = call.indication || 'Neuvedeno';
-        document.getElementById('pg-patient').textContent = [call.patient, call.patientAge].filter(Boolean).join(' / ') || 'Neznámý';
-        document.getElementById('pg-caller').textContent = [call.caller, call.phone].filter(Boolean).join(', ') || 'Neuveden';
-        document.getElementById('pg-note').textContent = call.note || 'Bez dalších poznámek';
-
-        const modal = document.getElementById('pager-modal');
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        startPagerAlarm();
-      }
-    });
-
-    function acceptDispatchCall() {
-      stopPagerAlarm();
-      const modal = document.getElementById('pager-modal');
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
-
-      if (pendingCallData) {
-        localStorage.setItem('zzs_accepted_dispatch', JSON.stringify(pendingCallData));
-        window.location.href = 'zov.html';
-      }
-    }
-
-    function updateShiftUI() {
-      const shift = getActiveShift();
-      const dot = document.getElementById('shift-dot');
-      const text = document.getElementById('shift-text');
-      const actionBtn = document.getElementById('btn-shift-action');
-      const headerBtn = document.getElementById('btn-header-shift');
-      const endBtn = document.getElementById('btn-end-shift');
-
-      if (shift && shift.active) {
-        dot.className = 'w-3 h-3 rounded-full bg-emerald-500 animate-pulse';
-        text.innerHTML = `<b class="text-sky-600 dark:text-sky-400">${shift.vehicle} (${shift.type})</b> – Záchranář: <b>${shift.paramedic}</b>${shift.driver ? ' | Řidič: ' + shift.driver : ''} <span class="text-emerald-600 dark:text-emerald-400 font-bold ml-2">(Pager ZZS aktivní 🔔)</span>`;
-        actionBtn.textContent = 'Upravit';
-        headerBtn.innerHTML = `🟢 ${shift.vehicle}`;
-        endBtn.classList.remove('hidden');
-
-        socket.emit('crew:login', shift);
-      } else {
-        dot.className = 'w-3 h-3 rounded-full bg-gray-400';
-        text.textContent = 'Žádná aktivní služba. Přihlaste se před zahájením výjezdů, aby vám fungoval pager.';
-        actionBtn.textContent = 'Přihlásit do služby';
-        headerBtn.innerHTML = `🚑 Nástup do služby`;
-        endBtn.classList.add('hidden');
-      }
-    }
-
-    function openShiftModal() {
-      const shift = getActiveShift();
-      if (shift) {
-        document.getElementById('sh-vehicle').value = shift.vehicle || '';
-        document.getElementById('sh-type').value = shift.type || 'RZP';
-        document.getElementById('sh-base').value = shift.base || '';
-        document.getElementById('sh-paramedic').value = shift.paramedic || '';
-        document.getElementById('sh-driver').value = shift.driver || '';
-      }
-      document.getElementById('modal-shift').classList.remove('hidden');
-      document.getElementById('modal-shift').classList.add('flex');
-    }
-
-    function closeShiftModal() {
-      document.getElementById('modal-shift').classList.add('hidden');
-      document.getElementById('modal-shift').classList.remove('flex');
-    }
-
-    function saveShift() {
-      const vehicle = document.getElementById('sh-vehicle').value.trim();
-      const paramedic = document.getElementById('sh-paramedic').value.trim();
-
-      if (!vehicle || !paramedic) return alert('Zadejte vozidlo a jméno záchranáře.');
-
-      const shiftData = {
-        active: true,
-        vehicle: vehicle,
-        type: document.getElementById('sh-type').value,
-        base: document.getElementById('sh-base').value.trim(),
-        paramedic: paramedic,
-        driver: document.getElementById('sh-driver').value.trim()
-      };
-
-      localStorage.setItem('zzs_active_shift', JSON.stringify(shiftData));
-      socket.emit('crew:login', shiftData);
-
-      fetch(`${SERVER_URL}/api/crews/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(shiftData)
-      }).catch(() => {});
-
-      playSinglePagerBurst();
-      closeShiftModal();
-      updateShiftUI();
-    }
-
-    function endShift() {
-      const shift = getActiveShift();
-      if (confirm('Ukončit směnu?')) {
-        if (shift && shift.vehicle) {
-          socket.emit('crew:logout', shift.vehicle);
-          fetch(`${SERVER_URL}/api/crews/logout`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ vehicle: shift.vehicle })
-          }).catch(() => {});
-        }
-        localStorage.removeItem('zzs_active_shift');
-        closeShiftModal();
-        updateShiftUI();
-      }
-    }
-
-    window.addEventListener('DOMContentLoaded', () => {
-      initTheme();
-      updateShiftUI();
-    });
-  </script>
-</body>
-</html>
+        html.classList.add('
