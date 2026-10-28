@@ -286,4 +286,273 @@
       const html = document.documentElement;
       const icon = document.getElementById('theme-icon');
       if (theme === 'dark') {
-        html.classList.add('
+        html.classList.add('dark');
+        html.classList.remove('light');
+        if (icon) icon.textContent = '☀️';
+      } else {
+        html.classList.remove('dark');
+        html.classList.add('light');
+        if (icon) icon.textContent = '🌙';
+      }
+      localStorage.setItem('zzs_theme', theme);
+    }
+
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.contains('dark');
+      applyTheme(isDark ? 'light' : 'dark');
+    }
+
+    // =========================================================
+    // AUTENTICKÝ ZVUK ČESKÉ ZZS (GONG ZÁKLADNY + PAGER 2730 Hz)
+    // =========================================================
+    let pagerInterval = null;
+    let pagerTimeout = null;
+    let audioCtx = null;
+    let pendingCallData = null;
+
+    function ensureAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playZzsStationGong() {
+      try {
+        ensureAudioContext();
+        const now = audioCtx.currentTime;
+        const gongNotes = [
+          { freq: 783.99, start: 0.00, dur: 0.30 }, // G5
+          { freq: 659.25, start: 0.28, dur: 0.30 }, // E5
+          { freq: 523.25, start: 0.56, dur: 0.55 }  // C5
+        ];
+
+        gongNotes.forEach(note => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(note.freq, now + note.start);
+
+          gain.gain.setValueAtTime(0.25, now + note.start);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + note.start + note.dur);
+
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + note.start);
+          osc.stop(now + note.start + note.dur);
+        });
+      } catch (e) {
+        console.warn('Nelze přehrát gong ZZS:', e);
+      }
+    }
+
+    function playSinglePagerBurst() {
+      try {
+        ensureAudioContext();
+        const now = audioCtx.currentTime;
+        const beepOffsets = [
+          0.00, 0.09, 0.18, 0.27, // 1. čtveřice
+          0.52, 0.61, 0.70, 0.79  // 2. čtveřice
+        ];
+
+        beepOffsets.forEach((offset) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(2730, now + offset);
+
+          gain.gain.setValueAtTime(0.16, now + offset);
+          gain.gain.setValueAtTime(0.16, now + offset + 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.065);
+
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + offset);
+          osc.stop(now + offset + 0.065);
+        });
+      } catch (e) {
+        console.warn('Zvuk pageru nelze přehrát:', e);
+      }
+    }
+
+    function startPagerAlarm() {
+      stopPagerAlarm();
+      playZzsStationGong();
+      pagerTimeout = setTimeout(() => {
+        playSinglePagerBurst();
+        pagerInterval = setInterval(playSinglePagerBurst, 1600);
+      }, 1200);
+    }
+
+    function stopPagerAlarm() {
+      if (pagerTimeout) {
+        clearTimeout(pagerTimeout);
+        pagerTimeout = null;
+      }
+      if (pagerInterval) {
+        clearInterval(pagerInterval);
+        pagerInterval = null;
+      }
+    }
+
+    function testPagerSound() {
+      playZzsStationGong();
+      setTimeout(playSinglePagerBurst, 1200);
+    }
+
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const SERVER_URL = isLocal 
+      ? (window.location.protocol + '//' + window.location.hostname + (window.location.port ? ':' + window.location.port : ':2584'))
+      : window.location.origin;
+
+    const socket = io(SERVER_URL, { transports: ['websocket', 'polling'] });
+
+    function getActiveShift() {
+      try { return JSON.parse(localStorage.getItem('zzs_active_shift') || 'null'); } catch(e) { return null; }
+    }
+
+    socket.on('dispatch:incoming', (call) => {
+      const shift = getActiveShift();
+      if (shift && shift.active && shift.vehicle === call.vehicle) {
+        pendingCallData = call;
+        
+        const isKoroner = call.targetForm === 'LEKARSKA' || call.crewType === 'KORONER';
+        document.getElementById('pg-header-title').textContent = isKoroner 
+          ? 'Výzva ZOS – Výjezd Koronera / Lékaře!' 
+          : 'Tísňová výzva ZOS – Výjezd!';
+        document.getElementById('pg-accept-btn-text').textContent = isKoroner
+          ? '✅ PŘIJMOUT VÝZVU A OTEVŘÍT PROTOKOL KORONERA'
+          : '✅ PŘIJMOUT VÝZVU A OTEVŘÍT EKP';
+
+        document.getElementById('pg-id').textContent = 'VÝZVA: ' + (call.id || '-');
+        document.getElementById('pg-time').textContent = call.time || '--:--';
+        document.getElementById('pg-vehicle').textContent = `${call.vehicle} (${call.crewType || 'RZP'})`;
+        document.getElementById('pg-charakter').textContent = call.charakter || 'PRI - Primární zásah';
+        document.getElementById('pg-priority').textContent = call.priority || 'II. Stupeň';
+        document.getElementById('pg-location').textContent = call.location || 'Neuvedeno';
+        document.getElementById('pg-indication').textContent = call.indication || 'Neuvedeno';
+        document.getElementById('pg-patient').textContent = [call.patient, call.patientAge].filter(Boolean).join(' / ') || 'Neznámý';
+        document.getElementById('pg-caller').textContent = [call.caller, call.phone].filter(Boolean).join(', ') || 'Neuveden';
+        document.getElementById('pg-note').textContent = call.note || 'Bez dalších poznámek';
+
+        const modal = document.getElementById('pager-modal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        startPagerAlarm();
+      }
+    });
+
+    function acceptDispatchCall() {
+      stopPagerAlarm();
+      const modal = document.getElementById('pager-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+
+      if (pendingCallData) {
+        localStorage.setItem('zzs_accepted_dispatch', JSON.stringify(pendingCallData));
+        if (pendingCallData.targetForm === 'LEKARSKA' || pendingCallData.crewType === 'KORONER') {
+          window.location.href = 'lekarska.html';
+        } else {
+          window.location.href = 'zov.html';
+        }
+      }
+    }
+
+    function updateShiftUI() {
+      const shift = getActiveShift();
+      const dot = document.getElementById('shift-dot');
+      const text = document.getElementById('shift-text');
+      const actionBtn = document.getElementById('btn-shift-action');
+      const headerBtn = document.getElementById('btn-header-shift');
+      const endBtn = document.getElementById('btn-end-shift');
+
+      if (shift && shift.active) {
+        dot.className = 'w-3 h-3 rounded-full bg-emerald-500 animate-pulse';
+        text.innerHTML = `<b class="text-sky-600 dark:text-sky-400">${shift.vehicle} (${shift.type})</b> – Vedoucí: <b>${shift.paramedic}</b>${shift.driver ? ' | Člen: ' + shift.driver : ''} <span class="text-emerald-600 dark:text-emerald-400 font-bold ml-2">(Pager ZZS aktivní 🔔)</span>`;
+        actionBtn.textContent = 'Upravit';
+        headerBtn.innerHTML = `🟢 ${shift.vehicle}`;
+        endBtn.classList.remove('hidden');
+
+        socket.emit('crew:login', shift);
+      } else {
+        dot.className = 'w-3 h-3 rounded-full bg-gray-400';
+        text.textContent = 'Žádná aktivní služba. Přihlaste se před zahájením výjezdů, aby vám fungoval pager.';
+        actionBtn.textContent = 'Přihlásit do služby';
+        headerBtn.innerHTML = `🚑 Nástup do služby`;
+        endBtn.classList.add('hidden');
+      }
+    }
+
+    function openShiftModal() {
+      const shift = getActiveShift();
+      if (shift) {
+        document.getElementById('sh-vehicle').value = shift.vehicle || '';
+        document.getElementById('sh-type').value = shift.type || 'RZP';
+        document.getElementById('sh-base').value = shift.base || '';
+        document.getElementById('sh-paramedic').value = shift.paramedic || '';
+        document.getElementById('sh-driver').value = shift.driver || '';
+      }
+      document.getElementById('modal-shift').classList.remove('hidden');
+      document.getElementById('modal-shift').classList.add('flex');
+    }
+
+    function closeShiftModal() {
+      document.getElementById('modal-shift').classList.add('hidden');
+      document.getElementById('modal-shift').classList.remove('flex');
+    }
+
+    function saveShift() {
+      const vehicle = document.getElementById('sh-vehicle').value.trim();
+      const paramedic = document.getElementById('sh-paramedic').value.trim();
+
+      if (!vehicle || !paramedic) return alert('Zadejte vozidlo a jméno vedoucího posádky.');
+
+      const shiftData = {
+        active: true,
+        vehicle: vehicle,
+        type: document.getElementById('sh-type').value,
+        base: document.getElementById('sh-base').value.trim(),
+        paramedic: paramedic,
+        driver: document.getElementById('sh-driver').value.trim()
+      };
+
+      localStorage.setItem('zzs_active_shift', JSON.stringify(shiftData));
+      socket.emit('crew:login', shiftData);
+
+      fetch(`${SERVER_URL}/api/crews/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(shiftData)
+      }).catch(() => {});
+
+      playSinglePagerBurst();
+      closeShiftModal();
+      updateShiftUI();
+    }
+
+    function endShift() {
+      const shift = getActiveShift();
+      if (confirm('Ukončit směnu?')) {
+        if (shift && shift.vehicle) {
+          socket.emit('crew:logout', shift.vehicle);
+          fetch(`${SERVER_URL}/api/crews/logout`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ vehicle: shift.vehicle })
+          }).catch(() => {});
+        }
+        localStorage.removeItem('zzs_active_shift');
+        closeShiftModal();
+        updateShiftUI();
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initTheme();
+      updateShiftUI();
+    });
+  </script>
+</body>
+</html>
