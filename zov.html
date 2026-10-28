@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<html lang="cs" class="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>EKP - Zdravotnická záchranná služba | Záznam o výjezdu</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+  <style>
+    :root {
+      --bg-body: #eef3f8;
+      --text-main: #1a2530;
+      --panel-bg: #ffffff;
+      --border-color: #b8cce4;
+      --input-bg: #ffffff;
+      --input-border: #9fb7d4;
+      --input-text: #111827;
+      --legend-color: #0b5394;
+      --tab-bg: #dbe7f5;
+      --tab-text: #334e68;
+      --bar-bg: #e3ecf5;
+    }
+
+    html.dark {
+      --bg-body: #0b1329;
+      --text-main: #f1f5f9;
+      --panel-bg: #1e293b;
+      --border-color: #334155;
+      --input-bg: #0f172a;
+      --input-border: #475569;
+      --input-text: #f8fafc;
+      --legend-color: #38bdf8;
+      --tab-bg: #1e293b;
+      --tab-text: #94a3b8;
+      --bar-bg: #131d33;
+    }
+
+    body { 
+      background-color: var(--bg-body); 
+      color: var(--text-main); 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+      font-size: 13px; 
+      transition: background-color 0.2s, color 0.2s;
+    }
+
+    .ekp-input { 
+      font-size: 12px; 
+      border: 1px solid var(--input-border); 
+      border-radius: 2px; 
+      padding: 3px 6px; 
+      background-color: var(--input-bg); 
+      color: var(--input-text);
+      height: 26px; 
+      width: 100%; 
+      outline: none; 
+    }
+    .ekp-input:focus { border-color: #38bdf8; box-shadow: 0 0 0 1px #38bdf8; }
+    
+    .ekp-label { 
+      font-size: 11px; 
+      color: var(--legend-color); 
+      font-weight: 600; 
+      white-space: nowrap; 
+      margin-bottom: 2px; 
+      display: block; 
+    }
+    
+    .ekp-fieldset { 
+      border: 1px solid var(--border-color); 
+      border-radius: 4px; 
+      padding: 8px 12px 10px; 
+      margin-bottom: 8px; 
+      background: var(--panel-bg); 
+    }
+    
+    .ekp-legend { 
+      font-size: 11.5px; 
+      font-weight: bold; 
+      color: var(--legend-color); 
+      padding: 0 6px; 
+      background: var(--panel-bg); 
+      border-left: 2px solid var(--legend-color); 
+    }
+    
+    .tab-btn { 
+      padding: 5px 10px; 
+      font-size: 12px; 
+      font-weight: 600; 
+      border-top-left-radius: 4px; 
+      border-top-right-radius: 4px; 
+      border: 1px solid var(--border-color); 
+      border-bottom: none; 
+      background: var(--tab-bg); 
+      color: var(--tab-text); 
+      display: inline-flex; 
+      align-items: center; 
+      gap: 6px; 
+      cursor: pointer; 
+      white-space: nowrap; 
+    }
+    .tab-btn.active { 
+      background: var(--panel-bg); 
+      color: var(--legend-color); 
+      border-color: #38bdf8; 
+      border-top: 2px solid #38bdf8; 
+    }
+    
+    .badge-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .badge-red { background-color: #ef4444; }
+    .badge-blue { background-color: #38bdf8; }
+
+    @keyframes pulse-border {
+      0%, 100% { border-color: #ef4444; box-shadow: 0 0 25px rgba(239, 68, 68, 0.7); }
+      50% { border-color: #f59e0b; box-shadow: 0 0 40px rgba(245, 158, 11, 0.9); }
+    }
+    .pager-modal-box {
+      animation: pulse-border 1s infinite;
+    }
+
+    @media print {
+      body * { visibility: hidden; }
+      #print-protocol, #print-protocol * { visibility: visible; }
+      #print-protocol { position: absolute; left: 0; top: 0; width: 100%; display: block !important; background: #fff !important; color: #000 !important; }
+      .no-print { display: none !important; }
+      @page { size: A4; margin: 10mm; }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- VYSKAKOVACÍ OKNO PAGERU: PŘÍCHOZÍ TÍSŇOVÁ VÝZVA -->
+  <div id="pager-modal" class="no-print fixed inset-0 z-50 hidden items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+    <div class="pager-modal-box bg-slate-900 text-white border-4 border-red-600 rounded-xl max-w-lg w-full overflow-hidden shadow-2xl">
+      <div class="bg-red-600 px-5 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <span class="text-2xl animate-bounce">🚨</span>
+          <div>
+            <h3 class="font-extrabold text-base tracking-wide uppercase">Tísňová výzva ZOS – Výjezd!</h3>
+            <p class="text-xs text-red-100 font-mono" id="pg-id">VÝZVA: -</p>
+          </div>
+        </div>
+        <span class="bg-black/40 px-2.5 py-1 rounded text-xs font-bold font-mono" id="pg-time">--:--</span>
+      </div>
+
+      <div class="p-5 space-y-3 text-sm">
+        <div class="flex items-center justify-between bg-slate-800 p-3 rounded-lg border border-slate-700">
+          <div>
+            <span class="text-[11px] uppercase text-slate-400 block font-bold">Vysílaná posádka</span>
+            <span class="font-extrabold text-base text-sky-400" id="pg-vehicle">-</span>
+          </div>
+          <div class="text-right">
+            <span class="text-[11px] uppercase text-slate-400 block font-bold">Naléhavost</span>
+            <span class="font-bold text-amber-400" id="pg-priority">-</span>
+          </div>
+        </div>
+
+        <div class="bg-slate-800/90 p-3 rounded-lg border border-slate-700">
+          <span class="text-[11px] uppercase text-slate-400 block font-bold">📍 Místo události (Adresa)</span>
+          <p class="font-bold text-base text-white mt-0.5" id="pg-location">-</p>
+        </div>
+
+        <div class="bg-red-950/60 p-3 rounded-lg border border-red-800/80">
+          <span class="text-[11px] uppercase text-red-300 block font-bold">🩺 Indikace / Důvod výjezdu</span>
+          <p class="font-bold text-base text-amber-300 mt-0.5" id="pg-indication">-</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 text-xs bg-slate-800/60 p-3 rounded-lg border border-slate-700">
+          <div>
+            <span class="text-slate-400 block font-semibold">Pacient:</span>
+            <strong class="text-white" id="pg-patient">-</strong>
+          </div>
+          <div>
+            <span class="text-slate-400 block font-semibold">Oznamovatel:</span>
+            <strong class="text-white" id="pg-caller">-</strong>
+          </div>
+          <div class="col-span-2 pt-1 border-t border-slate-700/80 mt-1">
+            <span class="text-slate-400 block font-semibold">Upřesnění / Poznámka dispečera:</span>
+            <strong class="text-amber-200" id="pg-note">-</strong>
+          </div>
+        </div>
+
+        <div class="pt-3">
+          <button type="button" onclick="acceptIncomingCallInEkp()" class="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white font-extrabold text-base py-3.5 px-4 rounded-lg shadow-lg flex items-center justify-center gap-2 transition cursor-pointer">
+            <span>✅ PŘIJMOUT VÝZVU A ZAHÁJIT VÝJEZD</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Navigační lišta EKP -->
+  <header class="no-print bg-[#152b43] text-white px-3 py-1.5 flex items-center justify-between border-b-2 border-red-600 shadow-sm">
+    <div class="flex items-center gap-3">
+      <a href="index.html" class="bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded text-xs font-semibold text-white transition">
+        ← Rozcestník
+      </a>
+      <a href="dispecink.html" class="bg-amber-600 hover:bg-amber-700 px-2.5 py-1 rounded text-xs font-semibold text-white transition">
+        📻 Dispečink ZOS
+      </a>
+      <a href="archiv.html" class="bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded text-xs font-semibold text-white transition">
+        📂 Kniha výjezdů
+      </a>
+      <span class="font-bold tracking-wide text-xs sm:text-sm">EKP - Záznam o výjezdu</span>
+    </div>
+
+    <div class="flex items-center gap-3 text-xs">
+      <span class="bg-black/30 px-2 py-0.5 rounded font-mono font-bold" id="hdr-event-no">Výzva: -</span>
+      <span class="font-semibold" id="hdr-patient-name"></span>
+      
+      <button type="button" onclick="toggleTheme()" id="theme-toggle-btn" class="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/20 px-2.5 py-1 rounded text-xs font-semibold transition" title="Přepnout denní / noční režim">
+        <span id="theme-icon">🌙</span>
+        <span id="theme-text">Tmavý režim</span>
+      </button>
+
+      <span class="flex items-center gap-1.5 pl-2 border-l border-white/40" id="hdr-shift-badge">
+        <span class="w-2.5 h-2.5 rounded-full bg-gray-400" id="ws-indicator-dot"></span>
+        <span class="text-[11px] font-semibold" id="hdr-shift-text">Offline</span>
+      </span>
+    </div>
+  </header>
+
+  <!-- Lišta nástrojů s tlačítky -->
+  <nav class="no-print border-b px-3 py-1.5 flex flex-wrap items-center gap-1.5 shadow-sm text-xs" style="background-color: var(--bar-bg); border-color: var(--border-color);">
+    <button type="button" onclick="saveRecord(false)" class="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 active:scale-95 font-semibold flex items-center gap-1 transition shadow-sm">
+      💾 Uložit koncept
+    </button>
+    <button type="button" onclick="saveRecord(true)" class="px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 active:scale-95 font-semibold flex items-center gap-1 transition shadow-sm">
+      🔒 Uzavřít výjezd
+    </button>
+    <button type="button" onclick="printProtocol()" class="px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded font-semibold text-gray-800 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+      🖨️ Tisk ZOV (PDF)
+    </button>
+    <button type="button" onclick="copyDiscordReport()" class="px-2.5 py-1.5 bg-[#152b43] text-white rounded hover:bg-[#0e1f31] font-semibold transition">
+      📋 Discord
+    </button>
+    <button type="button" onclick="loadDemoData()" class="px-2 py-1.5 bg-gray-200 dark:bg-slate-700 rounded text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-slate-600 transition">
+      ⚡ Vzor
+    </button>
+    <span class="ml-auto text-[11px] font-semibold px-2 py-0.5 rounded" id="save-status">Stav: Nový výjezd</span>
+  </nav>
+
+  <!-- Záložky -->
+  <div class="no-print border-b px-2 pt-2 flex gap-1 overflow-x-auto" style="background-color: var(--bar-bg); border-color: var(--border-color);">
+    <button class="tab-btn active" onclick="switchTab('tab-vyzva', this)"><span class="badge-dot badge-red"></span> Výzva & Posádka</button>
+    <button class="tab-btn" onclick="switchTab('tab-pacient', this)"><span class="badge-dot badge-red"></span> Pacient & Pojišťovna</button>
+    <button class="tab-btn" onclick="switchTab('tab-anamneza', this)"><span class="badge-dot badge-blue"></span> Anamnéza (OA, RA, SA, TA, FA)</button>
+    <button class="tab-btn" onclick="switchTab('tab-status', this)"><span class="badge-dot badge-red"></span> Status praesens</button>
+    <button class="tab-btn" onclick="switchTab('tab-vital', this)"><span class="badge-dot badge-blue"></span> Vitální hodnoty</button>
+    <button class="tab-btn" onclick="switchTab('tab-terapie', this)"><span class="badge-dot badge-red"></span> Ošetření & Terapie</button>
+    <button class="tab-btn" onclick="switchTab('tab-diagnoza', this)"><span class="badge-dot badge-red"></span> Diagnóza & NACA</button>
+    <button class="tab-btn" onclick="switchTab('tab-predani', this)"><span class="badge-dot badge-red"></span> Předání & Ukončení</button>
+  </div>
+
+  <!-- Obsah záložek -->
+  <main class="flex-1 p-3 overflow-y-auto max-w-[1400px] w-full mx-auto no-print">
+
+    <!-- TAB 1: VÝZVA & POSÁDKA -->
+    <section id="tab-vyzva" class="tab-content flex flex-col gap-2">
+      <div class="flex items-center gap-2 p-2 rounded border" style="background-color: var(--tab-bg); border-color: var(--border-color);">
+        <span class="text-xs font-bold" style="color: var(--legend-color);">Rychlé časy:</span>
+        <button type="button" onclick="stampDepartureTime()" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold">
+          ⏱️ Výjezd ze základny
+        </button>
+        <button type="button" onclick="stampOnSiteTime()" class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-semibold">
+          📍 Příjezd na místo
+        </button>
+      </div>
+
+      <div class="ekp-fieldset">
+        <span class="ekp-legend">Časová osa události</span>
+        <div class="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-10 gap-2 mt-2">
+          <div><label class="ekp-label">Přijetí výzvy</label><input type="text" id="t-vyzva" class="ekp-input font-bold" placeholder="hh:mm"></div>
+          <div><label class="ekp-label">Výjezd</label><input type="text" id="t-vyjezd" class="ekp-input font-bold" placeholder="hh:mm"></div>
+          <div><label class="ekp-label">Na místě</label><input type="text" id="t-namiste" class="ekp-input font-bold" placeholder="hh:mm"></div>
+          <div><label class="ekp-label">Začátek oš.</label><input type="text" id="t-osetreni" class="ekp-input" placeholder="hh:mm"></div>
+          <div><label class="ekp-label">Transport</label><input type="text" id="t-transport" class="ekp-input" placeholder="hh:mm"></div>
+          <div><label class="ekp-label">Příjezd CPALP</label><input type="text" id="t-cpalp" class="ekp-input" placeholder="hh:mm"></div>
+          <div><label class="ekp-label">Předání</label><input type="text" id="t-predani" class="ekp-input" placeholder="hh:mm"></div>
+          <div><label class="ekp-label">Volný</label><input type="text" id="t-volny" class="ekp-input" placeholder="hh:mm"></div>
+          <div><label class="ekp-label">Základna</label><input type="text" id="t-zakladna" class="ekp-input" placeholder="hh:mm"></div>
+          <div><label class="ekp-label">Ukončení</label><input type="text" id="t-ukonceni" class="ekp-input" placeholder="hh:mm"></div>
+        </div>
+      </div>
+
+      <div class="ekp-fieldset">
+        <span class="ekp-legend">Posádka výjezdové skupiny</span>
+        <div class="grid grid-cols-1 sm:grid-cols-6 gap-2 mt-2">
+          <div><label class="ekp-label">Vozidlo / Volací znak</label><input type="text" id="p-vozidlo" class="ekp-input font-semibold" placeholder="např. RZP-110"></div>
+          <div>
+            <label class="ekp-label">Typ posádky</label>
+            <select id="p-typ" class="ekp-input font-semibold">
+              <option value="" disabled selected>Zvolte typ...</option>
+              <option value="RZP">RZP</option>
+              <option value="RLP">RLP</option>
+              <option value="RV">RV</option>
+              <option value="LZS">LZS</option>
+            </select>
+          </div>
+          <div><label class="ekp-label">Vedoucí VS (NLZP)</label><input type="text" id="p-nlzp" class="ekp-input font-semibold" placeholder="Jméno a příjmení"></div>
+          <div><label class="ekp-label">Lékař</label><input type="text" id="p-lekar" class="ekp-input" placeholder="MUDr. (pokud slouží)"></div>
+          <div><label class="ekp-label">Řidič ZZS</label><input type="text" id="p-ridic" class="ekp-input" placeholder="Jméno a příjmení"></div>
+          <div><label class="ekp-label">Konzultující lékař</label><input type="text" id="p-konzult" class="ekp-input" placeholder="ZOS konzultace"></div>
+        </div>
+      </div>
+
+      <div class="ekp-fieldset">
+        <span class="ekp-legend">Informace o výjezdu ze ZOS</span>
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-2 mt-2">
+          <div>
+            <label class="ekp-label">Číslo výzvy ZOS</label>
+            <input type="text" id="v-cislo" class="ekp-input font-mono font-bold" readonly placeholder="Číslo ze ZOS...">
+          </div>
+          <div><label class="ekp-label">Výjezdová základna</label><input type="text" id="v-zakladna" class="ekp-input" placeholder="Výjezdové stanoviště"></div>
+          <div>
+            <label class="ekp-label">Charakter výjezdu</label>
+            <select id="v-charakter" class="ekp-input">
+              <option value="PRI - Primární zásah" selected>PRI - Primární zásah</option>
+              <option value="SEK - Sekundární">SEK - Sekundární</option>
+            </select>
+          </div>
+          <div>
+            <label class="ekp-label">Naléhavost ze ZOS</label>
+            <input type="text" id="v-nalehavost" class="ekp-input font-bold" placeholder="Stupeň naléhavosti">
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+          <div><label class="ekp-label">Místo zásahu *</label><input type="text" id="v-misto" class="ekp-input font-bold text-sm" placeholder="Adresa místa události"></div>
+          <div><label class="ekp-label">Indikace výjezdu *</label><input type="text" id="v-indikace" class="ekp-input font-semibold" placeholder="Důvod výjezdu"></div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+          <div><label class="ekp-label">Pokyny dispečera / Součinnost</label><input type="text" id="v-soucinnost" class="ekp-input" placeholder="Poznámka dispečera, kód domu..."></div>
+          <div><label class="ekp-label">Volající / Oznamovatel</label><input type="text" id="v-volajici" class="ekp-input" placeholder="Jméno a telefon oznamovatele"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: PACIENT & POJIŠŤOVNA -->
+    <section id="tab-pacient" class="tab-content hidden flex flex-col gap-2">
+      <div class="ekp-fieldset">
+        <span class="ekp-legend">Identifikace pacienta</span>
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-2 mt-2">
+          <div><label class="ekp-label">Příjmení *</label><input type="text" id="p-prijmeni" class="ekp-input font-bold" placeholder="Příjmení"></div>
+          <div><label class="ekp-label">Jméno *</label><input type="text" id="p-jmeno" class="ekp-input font-bold" placeholder="Jméno"></div>
+          <div><label class="ekp-label">Rodné číslo *</label><input type="text" id="p-rc" class="ekp-input font-mono" placeholder="RRMMDD/XXXX"></div>
+          <div><label class="ekp-label">Datum narození / Věk</label><input type="text" id="p-vek" class="ekp-input" placeholder="DD.MM.RRRR (např. 45 let)"></div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
+          <div>
+            <label class="ekp-label">Pohlaví</label>
+            <select id="p-pohlavi" class="ekp-input">
+              <option value="" disabled selected>Zvolte pohlaví...</option>
+              <option value="Muž">Muž</option>
+              <option value="Žena">Žena</option>
+              <option value="Neznámé">Neznámé</option>
+            </select>
+          </div>
+          <div><label class="ekp-label">Státní příslušnost</label><input type="text" id="p-stat" class="ekp-input" placeholder="Česká republika"></div>
+          <div>
+            <label class="ekp-label">Zdravotní pojišťovna</label>
+            <select id="p-zp" class="ekp-input">
+              <option value="" disabled selected>Zvolte pojišťovnu...</option>
+              <option value="111 - VZP">111 - Všeobecná zdravotní pojišťovna</option>
+              <option value="201 - VoZP">201 - Vojenská zdravotní pojišťovna</option>
+              <option value="205 - ČPZP">205 - Česká průmyslová ZP</option>
+              <option value="207 - OZP">207 - Oborová ZP</option>
+              <option value="211 - ZPMV">211 - ZP Ministerstva vnitra ČR</option>
+              <option value="Cizinec / Samoplátce">Cizinec / Samoplátce</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+          <div><label class="ekp-label">Bydliště pacienta</label><input type="text" id="p-bydliste" class="ekp-input" placeholder="Ulice, č.p., PSČ, obec"></div>
+          <div><label class="ekp-label">Kontaktní osoba</label><input type="text" id="p-kontakt" class="ekp-input" placeholder="Jméno, vztah, telefon"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: ANAMNÉZA (OA, RA, SA, TA, FA, AA, DVP) -->
+    <section id="tab-anamneza" class="tab-content hidden flex flex-col gap-2">
+      <div class="ekp-fieldset border-red-500/40">
+        <span class="ekp-legend text-red-500">Urgentní informace & Rizika</span>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+          <div><label class="ekp-label text-red-500">Alergologická anamnéza (AA - alergie a intolerance) *</label><input type="text" id="a-alergie" class="ekp-input border-red-400" placeholder="Alergie na léky či látky (nebo: neguje)"></div>
+          <div><label class="ekp-label text-red-500">Rizikové faktory / Varování</label><input type="text" id="a-varovani" class="ekp-input border-red-400" placeholder="Kardiostimulátor, antikoagulancia, infekce..."></div>
+        </div>
+      </div>
+
+      <div class="ekp-fieldset">
+        <span class="ekp-legend">Kompletní anamnéza pacienta</span>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+          <div>
+            <label class="ekp-label">Osobní anamnéza (OA - chronická onemocnění, operace, úrazy) *</label>
+            <textarea id="a-oa" rows="3" class="ekp-input h-20" placeholder="Chronická onemocnění, prodělané operace, úrazy..."></textarea>
+          </div>
+          <div>
+            <label class="ekp-label">Rodinná anamnéza (RA - závažná onemocnění v rodině) *</label>
+            <textarea id="a-ra" rows="3" class="ekp-input h-20" placeholder="Kardiovaskulární, onkologická onemocnění rodičů a sourozenců..."></textarea>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+          <div>
+            <label class="ekp-label">Sociální & Pracovní anamnéza (SA) *</label>
+            <textarea id="a-sa" rows="2" class="ekp-input h-16" placeholder="Bydlení, rodinné zázemí, soběstačnost, profese..."></textarea>
+          </div>
+          <div>
+            <label class="ekp-label">Farmakologická anamnéza (FA - trvalá medikace) *</label>
+            <textarea id="a-fa" rows="2" class="ekp-input h-16" placeholder="Pravidelně užívané léky, dávkování..."></textarea>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+          <div>
+            <label class="ekp-label">Toxikologická anamnéza (TA - abúzus, kouření, alkohol)</label>
+            <input type="text" id="a-ta" class="ekp-input" placeholder="Kuřák (kolik cigaret/den), alkohol, omamné látky...">
+          </div>
+          <div>
+            <label class="ekp-label">Dříve vyslovená přání (DVP / Omezení resuscitace)</label>
+            <input type="text" id="a-dvp" class="ekp-input" placeholder="Neevidováno / Neguje / Specifikace přání">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: STATUS PRAESENS -->
+    <section id="tab-status" class="tab-content hidden flex flex-col gap-2">
+      <div class="ekp-fieldset">
+        <span class="ekp-legend">Nynější onemocnění (NO)</span>
+        <div class="mt-2"><textarea id="s-no" rows="3" class="ekp-input h-20" placeholder="Popis vzniku potíží, mechanismus úrazu, časové souvislosti, stav před příjezdem..."></textarea></div>
+      </div>
+      <div class="ekp-fieldset">
+        <span class="ekp-legend">Objektivní somatický nález při kontaktu</span>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
+          <div><label class="ekp-label">Stav vědomí & Orientace</label><input type="text" id="s-vedomi" class="ekp-input" placeholder="Při vědomí, orientován, spolupracuje..."></div>
+          <div><label class="ekp-label">Zornice & Bulby</label><input type="text" id="s-zornice" class="ekp-input" placeholder="Izo/Anizo, fotoreakce, nystagmus..."></div>
+          <div><label class="ekp-label">Kůže a hydratace</label><input type="text" id="s-kuze" class="ekp-input" placeholder="Barva, turgor, kapilární návrat..."></div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
+          <div><label class="ekp-label">Hlava a krk</label><input type="text" id="s-hlava" class="ekp-input" placeholder="Poranění, hematom, krční páteř..."></div>
+          <div><label class="ekp-label">Dýchání & Hrudník</label><input type="text" id="s-dychani" class="ekp-input" placeholder="Sklípkové, čisté, eupnoe, hrudník pevný..."></div>
+          <div><label class="ekp-label">Břicho a pánev</label><input type="text" id="s-bricho" class="ekp-input" placeholder="Měkké, prohmatné, pánev stabilní..."></div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+          <div><label class="ekp-label">Končetiny (HKK / DKK)</label><input type="text" id="s-koncetiny" class="ekp-input" placeholder="Hybnost, otoky, bolestivost, pulsace..."></div>
+          <div><label class="ekp-label">Orientační neurologie</label><input type="text" id="s-neurologie" class="ekp-input" placeholder="Lateralizace, Mingazzini, řeč..."></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: VITÁLNÍ HODNOTY -->
+    <section id="tab-vital" class="tab-content hidden flex flex-col gap-2">
+      <div class="ekp-fieldset">
+        <span class="ekp-legend">Sledované vitální funkce</span>
+        <div class="flex flex-wrap justify-between items-center mb-2 mt-1 gap-2">
+          <span class="text-xs text-gray-500">Měření v průběhu ošetření a transportu (čas se vkládá automaticky)</span>
+          <button type="button" onclick="addVitalRow()" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold flex items-center gap-1">
+            ⏱️ + Přidat měření (aktuální čas)
+          </button>
+        </div>
+        <div class="overflow-x-auto border rounded" style="border-color: var(--border-color);">
+          <table class="w-full text-left text-xs" style="background-color: var(--panel-bg);">
+            <thead class="border-b" style="background-color: var(--tab-bg); border-color: var(--border-color); color: var(--legend-color);">
+              <tr>
+                <th class="p-1.5">Čas</th>
+                <th class="p-1.5">TK</th>
+                <th class="p-1.5">TF</th>
+                <th class="p-1.5">DF</th>
+                <th class="p-1.5">SpO2</th>
+                <th class="p-1.5">O2</th>
+                <th class="p-1.5">Glyk</th>
+                <th class="p-1.5">GCS</th>
+                <th class="p-1.5">AVPU</th>
+                <th class="p-1.5">EKG Rytmus</th>
+                <th class="p-1.5 text-center no-print">Akce</th>
+              </tr>
+            </thead>
+            <tbody id="vital-body">
+              <!-- Dynamické řádky měření -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 6: TERAPIE -->
+    <section id="tab-terapie" class="tab-content hidden flex flex-col gap-2">
+      <div class="ekp-fieldset">
+        <span class="ekp-legend">Podaná léčiva, infuze a zdravotnické výkony</span>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+          <div><label class="ekp-label">Podaná léčiva a infuze (DLP / SÚKL, čas, dávka, aplikace)</label><textarea id="t-leky" rows="3" class="ekp-input h-20" placeholder="Název léku, dávkování, čas, způsob podání, aplikoval..."></textarea></div>
+          <div><label class="ekp-label">Provedené výkony (Kanylace žíly, monitoring, EKG, imobilizace...)</label><textarea id="t-vykony" rows="3" class="ekp-input h-20" placeholder="Přehled výkonů..."></textarea></div>
+        </div>
+        <div class="mt-2">
+          <label class="ekp-label">Spotřebovaný zdravotnický materiál a pomůcky</label>
+          <input type="text" id="t-material" class="ekp-input" placeholder="Kanyly, stříkačky, krytí, elektrody, vakuová matrace...">
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 7: DIAGNÓZA & NACA -->
+    <section id="tab-diagnoza" class="tab-content hidden flex flex-col gap-2">
+      <div class="ekp-fieldset">
+        <span class="ekp-legend">Diagnóza a závažnost</span>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
+          <div><label class="ekp-label">Hlavní diagnóza (MKN-10) *</label><input type="text" id="d-mkn" class="ekp-input font-bold" placeholder="např. R55 - Mdloba a zhroucení"></div>
+          <div><label class="ekp-label">Vedlejší diagnóza (MKN-10)</label><input type="text" id="d-vedlejsi" class="ekp-input" placeholder="např. S00.0 - Poranění hlavy"></div>
+          <div>
+            <label class="ekp-label">NACA skóre *</label>
+            <select id="d-naca" class="ekp-input font-semibold">
+              <option value="" disabled selected>Zvolte NACA...</option>
+              <option value="I. Bez nutnosti lékaře">I. Bez nutnosti lékaře</option>
+              <option value="II. Lehké onemocnění">II. Lehké onemocnění</option>
+              <option value="III. Středně těžké, bez ohrožení života">III. Středně těžké, bez ohrožení života</option>
+              <option value="IV. Možné ohrožení života">IV. Možné ohrožení života</option>
+              <option value="V. Akutní ohrožení života">V. Akutní ohrožení života</option>
+              <option value="VI. Selhání vitálních funkcí">VI. Selhání vitálních funkcí</option>
+              <option value="VII. Úmrtí (Exitus letalis)">VII. Úmrtí (Exitus letalis)</option>
+            </select>
+          </div>
+        </div>
+        <div class="mt-2"><label class="ekp-label">Slovní upřesnění diagnózy a klinický závěr posádky</label><textarea id="d-upresneni" rows="3" class="ekp-input h-20" placeholder="Klinický závěr posádky..."></textarea></div>
+      </div>
+    </section>
+
+    <!-- TAB 8: PŘEDÁNÍ & UKONČENÍ -->
+    <section id="tab-predani" class="tab-content hidden flex flex-col gap-2">
+      <div class="ekp-fieldset">
+        <span class="ekp-legend">Ukončení výjezdu a předání pacienta</span>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
+          <div>
+            <label class="ekp-label">Způsob ukončení péče *</label>
+            <select id="u-zpusob" class="ekp-input font-semibold">
+              <option value="" disabled selected>Zvolte způsob...</option>
+              <option value="Předán do zdravotnického zařízení (CPALP)">Předán do zařízení (CPALP)</option>
+              <option value="Ponechán na místě po ošetření">Ponechán na místě po ošetření</option>
+              <option value="Odmítnutí péče (Negativní reverz)">Odmítnutí péče (Negativní reverz)</option>
+              <option value="Předán jiné posádce (RV/LZS)">Předán jiné posádce (RV/LZS)</option>
+              <option value="Konstatována smrt (Exitus letalis)">Konstatována smrt (Exitus letalis)</option>
+            </select>
+          </div>
+          <div><label class="ekp-label">Cílové zdravotnické zařízení (CPALP) *</label><input type="text" id="u-nemocnice" class="ekp-input font-semibold" placeholder="Nemocnice"></div>
+          <div><label class="ekp-label">Oddělení / Stanice</label><input type="text" id="u-oddeleni" class="ekp-input" placeholder="např. Urgentní příjem dospělých"></div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+          <div><label class="ekp-label">Předávající pracovník ZZS (Vy)</label><input type="text" id="u-predal" class="ekp-input font-semibold" placeholder="Záchranář / Lékař ZZS"></div>
+          <div><label class="ekp-label">Přebírající lékař / Zdravotník CPALP</label><input type="text" id="u-prevzal" class="ekp-input font-semibold" placeholder="Lékař / Sestra příjmu"></div>
+        </div>
+        <div class="mt-2">
+          <label class="ekp-label">Poznámka k předání a doporučení</label>
+          <input type="text" id="u-poznamka" class="ekp-input" placeholder="Režimová opatření, předané věci, stav při předání...">
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- TISKOVÁ SESTAVA DO PDF -->
+  <div id="print-protocol" class="hidden p-6 font-sans text-black max-w-4xl mx-auto bg-white">
+    <div class="border-b-2 border-black pb-2 mb-3 flex justify-between items-start">
+      <div>
+        <h1 class="text-lg font-bold uppercase tracking-wider">Zdravotnická záchranná služba</h1>
+        <p class="text-xs font-bold text-gray-700">ZÁZNAM O VÝJEZDU (ZOV ZZS) – DOKUMENTACE POSÁDKY</p>
+      </div>
+      <div class="text-right text-xs">
+        <p>Číslo události: <b id="pr-cislo" class="font-mono"></b></p>
+        <p>Vozidlo: <b id="pr-vozidlo"></b> (<span id="pr-typ"></span>) | Základna: <span id="pr-zakladna"></span></p>
+      </div>
+    </div>
+
+    <div class="border border-gray-400 p-2 mb-2 text-[11px] leading-tight">
+      <div class="font-bold border-b border-gray-300 pb-0.5 mb-1 text-gray-800">1. ADMINISTRATIVNÍ ÚDAJE VÝJEZDU A ČASOVÁ OSA</div>
+      <div class="grid grid-cols-2 gap-2 mb-1">
+        <p><b>Posádka:</b> NLZP: <span id="pr-nlzp"></span> | Lékař: <span id="pr-lekar"></span> | Řidič: <span id="pr-ridic"></span></p>
+        <p><b>Zásah:</b> <span id="pr-charakter"></span> | Naléhavost: <span id="pr-nalehavost"></span> | Součinnost: <span id="pr-soucinnost"></span></p>
+      </div>
+      <div class="bg-gray-50 border border-gray-200 p-1 text-[10.5px] grid grid-cols-5 gap-1 text-center">
+        <div>Výzva: <b id="pr-t-vyzva"></b></div>
+        <div>Výjezd: <b id="pr-t-vyjezd"></b></div>
+        <div>Na místě: <b id="pr-t-namiste"></b></div>
+        <div>Zahájení oš.: <b id="pr-t-osetreni"></b></div>
+        <div>Transport: <b id="pr-t-transport"></b></div>
+        <div>Příjezd CPALP: <b id="pr-t-cpalp"></b></div>
+        <div>Předání: <b id="pr-t-predani"></b></div>
+        <div>Volný: <b id="pr-t-volny"></b></div>
+        <div>Základna: <b id="pr-t-zakladna"></b></div>
+        <div>Ukončení: <b id="pr-t-ukonceni"></b></div>
+      </div>
+    </div>
+
+    <div class="border border-gray-400 p-2 mb-2 text-[11px] leading-tight">
+      <div class="font-bold border-b border-gray-300 pb-0.5 mb-1 text-gray-800">2. IDENTIFIKACE PACIENTA A LOKALIZACE</div>
+      <div class="grid grid-cols-3 gap-2">
+        <p>Jméno a příjmení: <b id="pr-pacient"></b></p>
+        <p>Rodné číslo: <b id="pr-rc"></b> (Věk: <span id="pr-vek"></span>)</p>
+        <p>Pojišťovna: <b id="pr-zp"></b></p>
+      </div>
+      <div class="grid grid-cols-2 gap-2 mt-1">
+        <p>Pohlaví / Stát: <span id="pr-pohlavi"></span> / <span id="pr-stat"></span></p>
+        <p>Bydliště: <span id="pr-bydliste"></span></p>
+      </div>
+      <div class="grid grid-cols-2 gap-2 mt-1">
+        <p>Místo zásahu: <b id="pr-misto"></b></p>
+        <p>Indikace / Důvod výjezdu: <span id="pr-indikace"></span></p>
+      </div>
+      <p class="mt-0.5 text-[10.5px] text-gray-700">Kontaktní osoba: <span id="pr-kontakt"></span> | Oznamovatel: <span id="pr-volajici"></span></p>
+    </div>
+
+    <div class="border border-gray-400 p-2 mb-2 text-[11px] leading-tight">
+      <div class="font-bold border-b border-gray-300 pb-0.5 mb-1 text-gray-800">3. STRUKTUROVANÁ ANAMNÉZA A URGENTNÍ INFORMACE</div>
+      <p class="text-red-700"><b>Alergie a intolerance (AA):</b> <span id="pr-alergie" class="font-bold"></span></p>
+      <p><b>Varování a rizikové faktory:</b> <span id="pr-varovani"></span></p>
+      <hr class="my-1 border-gray-200">
+      <p><b>Osobní anamnéza (OA):</b> <span id="pr-oa"></span></p>
+      <p><b>Rodinná anamnéza (RA):</b> <span id="pr-ra"></span></p>
+      <p><b>Sociální a pracovní anamnéza (SA):</b> <span id="pr-sa"></span></p>
+      <p><b>Toxikologická anamnéza (TA):</b> <span id="pr-ta"></span></p>
+      <p><b>Farmakologická anamnéza (FA):</b> <span id="pr-fa"></span></p>
+      <p><b>Dříve vyslovená přání (DVP):</b> <span id="pr-dvp"></span></p>
+    </div>
+
+    <div class="border border-gray-400 p-2 mb-2 text-[11px] leading-tight">
+      <div class="font-bold border-b border-gray-300 pb-0.5 mb-1 text-gray-800">4. NYNĚJŠÍ ONEMOCNĚNÍ A SOMATICKÝ STATUS PRAESENS</div>
+      <p><b>Nynější onemocnění (NO):</b> <span id="pr-no"></span></p>
+      <hr class="my-1 border-gray-200">
+      <div class="grid grid-cols-2 gap-2 text-[10.5px]">
+        <p><b>Vědomí & orientace:</b> <span id="pr-vedomi"></span></p>
+        <p><b>Zornice:</b> <span id="pr-zornice"></span></p>
+        <p><b>Kůže:</b> <span id="pr-kuze"></span></p>
+        <p><b>Hlava & krk:</b> <span id="pr-hlava"></span></p>
+        <p><b>Dýchání & hrudník:</b> <span id="pr-dychani"></span></p>
+        <p><b>Břicho & pánev:</b> <span id="pr-bricho"></span></p>
+        <p><b>Končetiny:</b> <span id="pr-koncetiny"></span></p>
+        <p><b>Neurologie:</b> <span id="pr-neurologie"></span></p>
+      </div>
+    </div>
+
+    <div class="border border-gray-400 p-2 mb-2 text-[11px] leading-tight">
+      <div class="font-bold border-b border-gray-300 pb-0.5 mb-1 text-gray-800">5. KONTROLNÍ MĚŘENÍ VITÁLNÍCH FUNKCÍ</div>
+      <table class="w-full text-left text-[10.5px] border-collapse mt-1">
+        <thead>
+          <tr class="border-b border-gray-400 bg-gray-100">
+            <th class="p-1">Čas</th>
+            <th class="p-1">TK</th>
+            <th class="p-1">TF</th>
+            <th class="p-1">DF</th>
+            <th class="p-1">SpO2</th>
+            <th class="p-1">O2</th>
+            <th class="p-1">Glykémie</th>
+            <th class="p-1">GCS</th>
+            <th class="p-1">AVPU</th>
+            <th class="p-1">EKG Rytmus</th>
+          </tr>
+        </thead>
+        <tbody id="pr-vital-tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="border border-gray-400 p-2 mb-2 text-[11px] leading-tight">
+      <div class="font-bold border-b border-gray-300 pb-0.5 mb-1 text-gray-800">6. POSKYTNUTÁ TERAPIE A ZDRAVOTNICKÉ VÝKONY</div>
+      <p><b>Podaná léčiva a infuze:</b> <span id="pr-leky"></span></p>
+      <p class="mt-0.5"><b>Provedené výkony:</b> <span id="pr-vykony"></span></p>
+      <p class="mt-0.5"><b>Spotřebovaný materiál & pomůcky:</b> <span id="pr-material"></span></p>
+    </div>
+
+    <div class="border border-gray-400 p-2 mb-2 text-[11px] leading-tight">
+      <div class="font-bold border-b border-gray-300 pb-0.5 mb-1 text-gray-800">7. DIAGNOSTICKÝ SOUHRN</div>
+      <div class="grid grid-cols-3 gap-2">
+        <p><b>Hlavní diagnóza (MKN-10):</b> <b id="pr-mkn"></b></p>
+        <p><b>Vedlejší diagnóza:</b> <span id="pr-vedlejsi"></span></p>
+        <p><b>NACA skóre:</b> <b id="pr-naca"></b></p>
+      </div>
+      <p class="mt-1"><b>Klinický závěr / Upřesnění diagnózy:</b> <span id="pr-upresneni"></span></p>
+    </div>
+
+    <div class="border border-gray-400 p-2 mb-2 text-[11px] leading-tight">
+      <div class="font-bold border-b border-gray-300 pb-0.5 mb-1 text-gray-800">8. UKONČENÍ PÉČE A PŘEDÁNÍ PACIENTA</div>
+      <div class="grid grid-cols-2 gap-2">
+        <p><b>Způsob ukončení:</b> <span id="pr-zpusob"></span></p>
+        <p><b>Cílové zařízení (CPALP):</b> <b id="pr-nemocnice"></b> (<span id="pr-oddeleni"></span>)</p>
+      </div>
+      <p class="mt-0.5"><b>Poznámka k předání:</b> <span id="pr-poznamka"></span></p>
+
+      <div class="grid grid-cols-2 gap-6 mt-8 pt-4 border-t border-gray-300 text-center">
+        <div>
+          <p class="border-t border-black pt-1">Předávající zdravotník ZZS: <b id="pr-predal"></b></p>
+        </div>
+        <div>
+          <p class="border-t border-black pt-1">Přebírající lékař CPALP: <b id="pr-prevzal"></b></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function initTheme() {
+      const savedTheme = localStorage.getItem('zzs_theme') || 'light';
+      applyTheme(savedTheme);
+    }
+
+    function applyTheme(theme) {
+      const html = document.documentElement;
+      const icon = document.getElementById('theme-icon');
+      const text = document.getElementById('theme-text');
+      
+      if (theme === 'dark') {
+        html.classList.add('dark');
+        html.classList.remove('light');
+        if (icon) icon.textContent = '☀️';
+        if (text) text.textContent = 'Světlý režim';
+      } else {
+        html.classList.remove('dark');
+        html.classList.add('light');
+        if (icon) icon.textContent = '🌙';
+        if (text) text.textContent = 'Tmavý režim';
+      }
+      localStorage.setItem('zzs_theme', theme);
+    }
+
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.contains('dark');
+      applyTheme(isDark ? 'light' : 'dark');
+    }
+
+    // =========================================================
+    // AUTENTICKÝ ZVUK ČESKÉ ZZS (GONG ZÁKLADNY + PAGER 2730 Hz)
+    // =========================================================
+    let pagerInterval = null;
+    let audioCtx = null;
+    let incomingCallCache = null;
+
+    function ensureAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    // 1. Úvodní třítónový výjezdový gong ze základny ZZS (G5 -> E5 -> C5)
+    function playZzsStationGong() {
+      try {
+        ensureAudioContext();
+        const now = audioCtx.currentTime;
+        const gongNotes = [
+          { freq: 783.99, start: 0.00, dur: 0.30 }, // G5
+          { freq: 659.25, start: 0.28, dur: 0.30 }, // E5
+          { freq: 523.25, start: 0.56, dur: 0.55 }  // C5
+        ];
+
+        gongNotes.forEach(note => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(note.freq, now + note.start);
+
+          gain.gain.setValueAtTime(0.25, now + note.start);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + note.start + note.dur);
+
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + note.start);
+          osc.stop(now + note.start + note.dur);
+        });
+      } catch (e) {
+        console.warn('Nelze přehrát gong ZZS:', e);
+      }
+    }
+
+    // 2. Typická kadence českého pageru ZZS (Swissphone / Motorola: 2x 4 rychlá pípnutí na 2730 Hz)
+    function playSinglePagerBurst() {
+      try {
+        ensureAudioContext();
+        const now = audioCtx.currentTime;
+        const beepOffsets = [
+          0.00, 0.09, 0.18, 0.27, // 1. čtveřice
+          0.52, 0.61, 0.70, 0.79  // 2. čtveřice
+        ];
+
+        beepOffsets.forEach((offset) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(2730, now + offset);
+
+          gain.gain.setValueAtTime(0.16, now + offset);
+          gain.gain.setValueAtTime(0.16, now + offset + 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.065);
+
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + offset);
+          osc.stop(now + offset + 0.065);
+        });
+      } catch (e) {
+        console.warn('Zvuk pageru nelze přehrát:', e);
+      }
+    }
+
+    function startPagerAlarm() {
+      stopPagerAlarm();
+      playZzsStationGong();
+      setTimeout(() => {
+        if (pagerInterval !== null) {
+          playSinglePagerBurst();
+        }
+      }, 1150);
+      pagerInterval = setInterval(playSinglePagerBurst, 1600);
+    }
+
+    function stopPagerAlarm() {
+      if (pagerInterval) {
+        clearInterval(pagerInterval);
+        pagerInterval = null;
+      }
+    }
+
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const SERVER_URL = isLocal 
+      ? (window.location.protocol + '//' + window.location.hostname + (window.location.port ? ':' + window.location.port : ':2584'))
+      : window.location.origin;
+
+    let socket = null;
+    try {
+      socket = io(SERVER_URL, { 
+        transports: ['websocket', 'polling'],
+        timeout: 3000,
+        reconnectionAttempts: 5
+      });
+    } catch(e) {}
+
+    function getCurrentTimeString() {
+      const now = new Date();
+      return String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+    }
+
+    function stampDepartureTime() {
+      const t = getCurrentTimeString();
+      document.getElementById('t-vyjezd').value = t;
+      alert(`Čas výjezdu ${t} byl zaznamenán.`);
+    }
+
+    function stampOnSiteTime() {
+      const t = getCurrentTimeString();
+      document.getElementById('t-namiste').value = t;
+      document.getElementById('t-osetreni').value = t;
+      alert(`Příjezd na místo události ${t} byl zaznamenán.`);
+    }
+
+    function applyCallDataToForm(call, stampDeparture = false) {
+      if (!call) return;
+      document.getElementById('v-cislo').value = call.id || '';
+      document.getElementById('t-vyzva').value = call.time || '';
+      if (stampDeparture) {
+        document.getElementById('t-vyjezd').value = getCurrentTimeString();
+      }
+      document.getElementById('v-misto').value = call.location || '';
+      document.getElementById('v-indikace').value = call.indication || '';
+      document.getElementById('v-soucinnost').value = call.note || 'Bez součinnosti';
+      document.getElementById('v-volajici').value = [call.caller, call.phone].filter(Boolean).join(', ');
+      if (call.priority) document.getElementById('v-nalehavost').value = call.priority;
+      
+      if (call.patient) {
+        const parts = call.patient.split(' ');
+        if (parts.length > 1) {
+          document.getElementById('p-jmeno').value = parts[0];
+          document.getElementById('p-prijmeni').value = parts.slice(1).join(' ');
+        } else {
+          document.getElementById('p-prijmeni').value = call.patient;
+        }
+      }
+      if (call.patientAge) document.getElementById('p-vek').value = call.patientAge;
+
+      if (call.vehicle) document.getElementById('p-vozidlo').value = call.vehicle;
+      if (call.crewType) document.getElementById('p-typ').value = call.crewType;
+      if (call.paramedic) {
+        document.getElementById('p-nlzp').value = call.paramedic;
+        document.getElementById('u-predal').value = call.paramedic;
+      }
+      if (call.driver) document.getElementById('p-ridic').value = call.driver;
+      if (call.physician) document.getElementById('p-lekar').value = call.physician;
+      if (call.base) document.getElementById('v-zakladna').value = call.base;
+
+      updatePatientHeader();
+      const st = document.getElementById('save-status');
+      if (st) {
+        st.textContent = `Výzva ${call.id} přijata posádkou`;
+        st.className = 'ml-auto text-[11px] font-semibold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded';
+      }
+    }
+
+    function acceptIncomingCallInEkp() {
+      stopPagerAlarm();
+      const modal = document.getElementById('pager-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+
+      if (incomingCallCache) {
+        applyCallDataToForm(incomingCallCache, true);
+        incomingCallCache = null;
+      }
+    }
+
+    async function getNextSequenceNumber(prefix = 'ZOV') {
+      const year = new Date().getFullYear().toString().slice(-2);
+      const prefixYear = `${prefix}-${year}-`;
+      
+      try {
+        const res = await fetch(`${SERVER_URL}/api/records`);
+        if (res.ok) {
+          const records = await res.json();
+          const filtered = records.filter(r => r.id && r.id.startsWith(prefixYear));
+          if (filtered.length > 0) {
+            const maxNum = Math.max(...filtered.map(r => {
+              const numStr = r.id.split('-')[2];
+              return parseInt(numStr, 10) || 0;
+            }));
+            return `${prefixYear}${String(maxNum + 1).padStart(3, '0')}`;
+          }
+        }
+      } catch(e) {}
+      
+      const storageKey = `zzs_seq_${prefix}_${year}`;
+      let lastNum = parseInt(localStorage.getItem(storageKey) || '0', 10);
+      lastNum += 1;
+      localStorage.setItem(storageKey, lastNum.toString());
+      return `${prefixYear}${String(lastNum).padStart(3, '0')}`;
+    }
+
+    function updatePatientHeader() {
+      const jmeno = (document.getElementById('p-jmeno')?.value || '').trim();
+      const prijmeni = (document.getElementById('p-prijmeni')?.value || '').trim();
+      const celyJmeno = [jmeno, prijmeni].filter(Boolean).join(' ');
+      const hdr = document.getElementById('hdr-patient-name');
+      const num = (document.getElementById('v-cislo')?.value || '').trim();
+      
+      if (document.getElementById('hdr-event-no')) {
+        document.getElementById('hdr-event-no').textContent = num ? 'Výzva: ' + num : 'Výzva: -';
+      }
+      if (hdr) {
+        hdr.textContent = celyJmeno ? 'Pacient: ' + celyJmeno : '';
+      }
+    }
+
+    function switchTab(tabId, btn) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      const target = document.getElementById(tabId);
+      if (target) target.classList.remove('hidden');
+      if (btn) btn.classList.add('active');
+    }
+
+    function addVitalRow(customTime = null, values = {}) {
+      const timeStr = customTime !== null ? customTime : getCurrentTimeString();
+      const tbody = document.getElementById('vital-body');
+      if (!tbody) return;
+      const tr = document.createElement('tr');
+      tr.className = 'border-b hover:bg-blue-50/10 transition';
+      tr.style.borderColor = 'var(--border-color)';
+      tr.innerHTML = `
+        <td class="p-1">
+          <input type="text" class="ekp-input v-cas font-mono font-semibold text-blue-900 bg-blue-50/50" value="${timeStr}">
+        </td>
+        <td class="p-1"><input type="text" class="ekp-input v-tk" placeholder="TK" value="${values.tk || ''}"></td>
+        <td class="p-1"><input type="text" class="ekp-input v-tf" placeholder="TF" value="${values.tf || ''}"></td>
+        <td class="p-1"><input type="text" class="ekp-input v-df" placeholder="DF" value="${values.df || ''}"></td>
+        <td class="p-1"><input type="text" class="ekp-input v-spo2" placeholder="SpO2" value="${values.spo2 || ''}"></td>
+        <td class="p-1">
+          <select class="ekp-input v-o2">
+            <option ${values.o2 === 'Bez O2' ? 'selected' : ''}>Bez O2</option>
+            <option ${values.o2 === 'O2 2 l/min' ? 'selected' : ''}>O2 2 l/min</option>
+            <option ${values.o2 === 'O2 5 l/min' ? 'selected' : ''}>O2 5 l/min</option>
+            <option ${values.o2 === 'O2 10-15 l/min' ? 'selected' : ''}>O2 10-15 l/min</option>
+          </select>
+        </td>
+        <td class="p-1"><input type="text" class="ekp-input v-gly" placeholder="Gly" value="${values.gly || ''}"></td>
+        <td class="p-1"><input type="text" class="ekp-input v-gcs" placeholder="GCS" value="${values.gcs || ''}"></td>
+        <td class="p-1">
+          <select class="ekp-input v-avpu">
+            <option ${values.avpu === 'A (Alert)' ? 'selected' : ''}>A (Alert)</option>
+            <option ${values.avpu === 'V' ? 'selected' : ''}>V</option>
+            <option ${values.avpu === 'P' ? 'selected' : ''}>P</option>
+            <option ${values.avpu === 'U' ? 'selected' : ''}>U</option>
+          </select>
+        </td>
+        <td class="p-1"><input type="text" class="ekp-input v-ekg" placeholder="Rytmus" value="${values.ekg || ''}"></td>
+        <td class="p-1 text-center no-print">
+          <button type="button" onclick="this.closest('tr').remove()" class="text-red-500 hover:text-red-700 font-bold px-1.5 py-0.5 rounded" title="Smazat toto měření">✕</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    function val(id, fallback = '') {
+      const el = document.getElementById(id);
+      if (!el) return fallback;
+      const v = (el.value || '').trim();
+      return v ? v : fallback;
+    }
+
+    function saveRecord(isFinal = false) {
+      try {
+        updatePatientHeader();
+        
+        let id = val('v-cislo');
+        const pacient = [val('p-jmeno'), val('p-prijmeni')].filter(Boolean).join(' ') || 'Neznámý pacient';
+
+        const vitals = [];
+        document.querySelectorAll('#vital-body tr').forEach(r => {
+          vitals.push({
+            cas: r.querySelector('.v-cas')?.value || '',
+            tk: r.querySelector('.v-tk')?.value || '',
+            tf: r.querySelector('.v-tf')?.value || '',
+            df: r.querySelector('.v-df')?.value || '',
+            spo2: r.querySelector('.v-spo2')?.value || '',
+            o2: r.querySelector('.v-o2')?.value || 'Bez O2',
+            gly: r.querySelector('.v-gly')?.value || '',
+            gcs: r.querySelector('.v-gcs')?.value || '',
+            avpu: r.querySelector('.v-avpu')?.value || 'A (Alert)',
+            ekg: r.querySelector('.v-ekg')?.value || ''
+          });
+        });
+
+        const recordPayload = {
+          id: id,
+          type: 'ZOV',
+          isClosed: isFinal,
+          date: new Date().toLocaleString('cs-CZ'),
+          vehicle: val('p-vozidlo'),
+          patient: pacient,
+          rc: val('p-rc'),
+          diagnosis: val('d-mkn'),
+          vitals: vitals,
+          formData: {
+            t_vyzva: val('t-vyzva'), t_vyjezd: val('t-vyjezd'), t_namiste: val('t-namiste'),
+            t_osetreni: val('t-osetreni'), t_transport: val('t-transport'), t_cpalp: val('t-cpalp'),
+            t_predani: val('t-predani'), t_volny: val('t-volny'), t_zakladna: val('t-zakladna'), t_ukonceni: val('t-ukonceni'),
+            p_vozidlo: val('p-vozidlo'), p_typ: val('p-typ'), p_nlzp: val('p-nlzp'), p_lekar: val('p-lekar'), p_ridic: val('p-ridic'), p_konzult: val('p-konzult'),
+            v_cislo: id, v_zakladna: val('v-zakladna'), v_charakter: val('v-charakter'), v_nalehavost: val('v-nalehavost'),
+            v_misto: val('v-misto'), v_indikace: val('v-indikace'), v_soucinnost: val('v-soucinnost'), v_volajici: val('v-volajici'),
+            p_prijmeni: val('p-prijmeni'), p_jmeno: val('p-jmeno'), p_rc: val('p-rc'), p_vek: val('p-vek'), p_pohlavi: val('p-pohlavi'),
+            p_stat: val('p-stat'), p_zp: val('p-zp'), p_bydliste: val('p-bydliste'), p_kontakt: val('p-kontakt'),
+            a_alergie: val('a-alergie'), a_varovani: val('a-varovani'), a_oa: val('a-oa'), a_ra: val('a-ra'),
+            a_sa: val('a-sa'), a_fa: val('a-fa'), a_ta: val('a-ta'), a_dvp: val('a-dvp'),
+            s_no: val('s-no'), s_vedomi: val('s-vedomi'), s_zornice: val('s-zornice'), s_kuze: val('s-kuze'),
+            s_hlava: val('s-hlava'), s_dychani: val('s-dychani'), s_bricho: val('s-bricho'), s_koncetiny: val('s-koncetiny'), s_neurologie: val('s-neurologie'),
+            t_leky: val('t-leky'), t_vykony: val('t-vykony'), t_material: val('t-material'),
+            d_mkn: val('d-mkn'), d_vedlejsi: val('d-vedlejsi'), d_naca: val('d-naca'), d_upresneni: val('d-upresneni'),
+            u_zpusob: val('u-zpusob'), u_nemocnice: val('u-nemocnice'), u_oddeleni: val('u-oddeleni'), u_predal: val('u-predal'), u_prevzal: val('u-prevzal'), u_poznamka: val('u-poznamka')
+          }
+        };
+
+        let localRecords = [];
+        try {
+          localRecords = JSON.parse(localStorage.getItem('zzs_records') || '[]');
+        } catch(e) { localRecords = []; }
+
+        const existingIdx = localRecords.findIndex(r => r.id === id);
+        if (existingIdx >= 0) {
+          localRecords[existingIdx] = recordPayload;
+        } else {
+          localRecords.unshift(recordPayload);
+        }
+        localStorage.setItem('zzs_records', JSON.stringify(localRecords));
+
+        const st = document.getElementById('save-status');
+        st.textContent = `Uloženo lokálně (Odesílám...)`;
+        st.className = 'ml-auto text-[11px] font-semibold text-sky-600 bg-sky-500/10 px-2 py-0.5 rounded';
+
+        if (socket && socket.connected) {
+          socket.emit('record:save', recordPayload, (res) => {
+            if (res && res.success) {
+              st.textContent = `Uloženo v databázi (${new Date().toLocaleTimeString()})`;
+              st.className = 'ml-auto text-[11px] font-semibold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded';
+            }
+          });
+        } else {
+          st.textContent = `Uloženo lokálně (Server nedostupný)`;
+          st.className = 'ml-auto text-[11px] font-semibold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded';
+        }
+
+        if (isFinal) {
+          alert(`Záznam o výjezdu ${id} byl úspěšně uzavřen a zabezpečen.`);
+        }
+      } catch (err) {
+        console.error('Chyba při ukládání:', err);
+        alert('Omlouváme se, došlo k chybě při zápisu do paměti: ' + err.message);
+      }
+    }
+
+    if (socket) {
+      socket.on('dispatch:incoming', (call) => {
+        const currentVehicle = (document.getElementById('p-vozidlo')?.value || '').trim();
+        let shift = null;
+        try { shift = JSON.parse(localStorage.getItem('zzs_active_shift') || 'null'); } catch(e){}
+
+        const myVehicle = currentVehicle || (shift && shift.active ? shift.vehicle : '');
+
+        if (myVehicle && myVehicle === call.vehicle) {
+          incomingCallCache = call;
+
+          document.getElementById('pg-id').textContent = 'VÝZVA: ' + (call.id || '-');
+          document.getElementById('pg-time').textContent = call.time || '--:--';
+          document.getElementById('pg-vehicle').textContent = `${call.vehicle} (${call.crewType || 'RZP'})`;
+          document.getElementById('pg-priority').textContent = call.priority || 'II. Stupeň';
+          document.getElementById('pg-location').textContent = call.location || 'Neuvedeno';
+          document.getElementById('pg-indication').textContent = call.indication || 'Neuvedeno';
+          document.getElementById('pg-patient').textContent = [call.patient, call.patientAge].filter(Boolean).join(' / ') || 'Neznámý';
+          document.getElementById('pg-caller').textContent = [call.caller, call.phone].filter(Boolean).join(', ') || 'Neuveden';
+          document.getElementById('pg-note').textContent = call.note || 'Bez dalších poznámek';
+
+          const modal = document.getElementById('pager-modal');
+          modal.classList.remove('hidden');
+          modal.classList.add('flex');
+          startPagerAlarm();
+        }
+      });
+
+      socket.on('connect', () => {
+        const dot = document.getElementById('ws-indicator-dot');
+        const txt = document.getElementById('hdr-shift-text');
+        if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
+        if (txt) txt.textContent = 'Online (DB)';
+      });
+
+      socket.on('disconnect', () => {
+        const dot = document.getElementById('ws-indicator-dot');
+        const txt = document.getElementById('hdr-shift-text');
+        if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
+        if (txt) txt.textContent = 'Lokální režim';
+      });
+    }
+
+    function printProtocol() {
+      document.getElementById('pr-cislo').textContent = val('v-cislo', '-');
+      document.getElementById('pr-vozidlo').textContent = val('p-vozidlo', '-');
+      document.getElementById('pr-typ').textContent = val('p-typ', '-');
+      document.getElementById('pr-zakladna').textContent = val('v-zakladna', '-');
+      document.getElementById('pr-nlzp').textContent = val('p-nlzp', '-');
+      document.getElementById('pr-lekar').textContent = val('p-lekar', 'Neuveden');
+      document.getElementById('pr-ridic').textContent = val('p-ridic', '-');
+      document.getElementById('pr-charakter').textContent = val('v-charakter', '-');
+      document.getElementById('pr-nalehavost').textContent = val('v-nalehavost', '-');
+      document.getElementById('pr-soucinnost').textContent = val('v-soucinnost', 'Bez součinnosti');
+
+      document.getElementById('pr-t-vyzva').textContent = val('t-vyzva', '-');
+      document.getElementById('pr-t-vyjezd').textContent = val('t-vyjezd', '-');
+      document.getElementById('pr-t-namiste').textContent = val('t-namiste', '-');
+      document.getElementById('pr-t-osetreni').textContent = val('t-osetreni', '-');
+      document.getElementById('pr-t-transport').textContent = val('t-transport', '-');
+      document.getElementById('pr-t-cpalp').textContent = val('t-cpalp', '-');
+      document.getElementById('pr-t-predani').textContent = val('t-predani', '-');
+      document.getElementById('pr-t-volny').textContent = val('t-volny', '-');
+      document.getElementById('pr-t-zakladna').textContent = val('t-zakladna', '-');
+      document.getElementById('pr-t-ukonceni').textContent = val('t-ukonceni', '-');
+
+      const jmeno = val('p-jmeno');
+      const prijmeni = val('p-prijmeni');
+      document.getElementById('pr-pacient').textContent = [jmeno, prijmeni].filter(Boolean).join(' ') || 'Neznámý / Neuvedeno';
+      document.getElementById('pr-rc').textContent = val('p-rc', '-');
+      document.getElementById('pr-vek').textContent = val('p-vek', '-');
+      document.getElementById('pr-pohlavi').textContent = val('p-pohlavi', '-');
+      document.getElementById('pr-stat').textContent = val('p-stat', '-');
+      document.getElementById('pr-zp').textContent = val('p-zp', '-');
+      document.getElementById('pr-bydliste').textContent = val('p-bydliste', '-');
+      document.getElementById('pr-misto').textContent = val('v-misto', '-');
+      document.getElementById('pr-indikace').textContent = val('v-indikace', '-');
+      document.getElementById('pr-kontakt').textContent = val('p-kontakt', '-');
+      document.getElementById('pr-volajici').textContent = val('v-volajici', '-');
+
+      document.getElementById('pr-alergie').textContent = val('a-alergie', 'Neguje');
+      document.getElementById('pr-varovani').textContent = val('a-varovani', 'Bez varování');
+      document.getElementById('pr-oa').textContent = val('a-oa', 'Bez pozoruhodností');
+      document.getElementById('pr-ra').textContent = val('a-ra', 'Bez pozoruhodností');
+      document.getElementById('pr-sa').textContent = val('a-sa', 'Běžné poměry');
+      document.getElementById('pr-ta').textContent = val('a-ta', 'Neguje');
+      document.getElementById('pr-fa').textContent = val('a-fa', 'Bez pravidelné medikace');
+      document.getElementById('pr-dvp').textContent = val('a-dvp', 'Neevidováno');
+
+      document.getElementById('pr-no').textContent = val('s-no', '-');
+      document.getElementById('pr-vedomi').textContent = val('s-vedomi', '-');
+      document.getElementById('pr-zornice').textContent = val('s-zornice', '-');
+      document.getElementById('pr-kuze').textContent = val('s-kuze', '-');
+      document.getElementById('pr-hlava').textContent = val('s-hlava', '-');
+      document.getElementById('pr-dychani').textContent = val('s-dychani', '-');
+      document.getElementById('pr-bricho').textContent = val('s-bricho', '-');
+      document.getElementById('pr-koncetiny').textContent = val('s-koncetiny', '-');
+      document.getElementById('pr-neurologie').textContent = val('s-neurologie', '-');
+
+      const prTbody = document.getElementById('pr-vital-tbody');
+      prTbody.innerHTML = '';
+      const rows = document.querySelectorAll('#vital-body tr');
+      rows.forEach(r => {
+        const c_cas = r.querySelector('.v-cas')?.value.trim();
+        const c_tk = r.querySelector('.v-tk')?.value.trim();
+        const c_tf = r.querySelector('.v-tf')?.value.trim();
+        const c_df = r.querySelector('.v-df')?.value.trim();
+        const c_spo2 = r.querySelector('.v-spo2')?.value.trim();
+        const c_o2 = r.querySelector('.v-o2')?.value.trim();
+        const c_gly = r.querySelector('.v-gly')?.value.trim();
+        const c_gcs = r.querySelector('.v-gcs')?.value.trim();
+        const c_avpu = r.querySelector('.v-avpu')?.value.trim();
+        const c_ekg = r.querySelector('.v-ekg')?.value.trim();
+
+        if (c_cas || c_tk || c_tf || c_df || c_spo2 || c_gly || c_gcs || c_ekg) {
+          const trPr = document.createElement('tr');
+          trPr.className = 'border-b border-gray-300';
+          trPr.innerHTML = `
+            <td class="p-1">${c_cas || '-'}</td>
+            <td class="p-1">${c_tk || '-'}</td>
+            <td class="p-1">${c_tf || '-'}</td>
+            <td class="p-1">${c_df || '-'}</td>
+            <td class="p-1">${c_spo2 || '-'}</td>
+            <td class="p-1">${c_o2 || '-'}</td>
+            <td class="p-1">${c_gly || '-'}</td>
+            <td class="p-1">${c_gcs || '-'}</td>
+            <td class="p-1">${c_avpu || '-'}</td>
+            <td class="p-1">${c_ekg || '-'}</td>
+          `;
+          prTbody.appendChild(trPr);
+        }
+      });
+      if (!prTbody.children.length) {
+        prTbody.innerHTML = '<tr><td colspan="10" class="p-1 text-gray-500 italic">Nebyly zaznamenány žádné hodnoty</td></tr>';
+      }
+
+      document.getElementById('pr-leky').textContent = val('t-leky', 'Nepodána');
+      document.getElementById('pr-vykony').textContent = val('t-vykony', 'Neprovedeny');
+      document.getElementById('pr-material').textContent = val('t-material', '-');
+
+      document.getElementById('pr-mkn').textContent = val('d-mkn', '-');
+      document.getElementById('pr-vedlejsi').textContent = val('d-vedlejsi', '-');
+      document.getElementById('pr-naca').textContent = val('d-naca', '-');
+      document.getElementById('pr-upresneni').textContent = val('d-upresneni', '-');
+
+      document.getElementById('pr-zpusob').textContent = val('u-zpusob', '-');
+      document.getElementById('pr-nemocnice').textContent = val('u-nemocnice', '-');
+      document.getElementById('pr-oddeleni').textContent = val('u-oddeleni', '-');
+      document.getElementById('pr-poznamka').textContent = val('u-poznamka', 'Bez dalších záznamů');
+      document.getElementById('pr-predal').textContent = val('u-predal', '-');
+      document.getElementById('pr-prevzal').textContent = val('u-prevzal', '-');
+
+      window.print();
+    }
+
+    function copyDiscordReport() {
+      const cislo = val('v-cislo', '-');
+      const vozidlo = val('p-vozidlo', '-');
+      const pacient = [val('p-jmeno'), val('p-prijmeni')].filter(Boolean).join(' ') || 'Neuvedeno';
+      const misto = val('v-misto', '-');
+      const dg = val('d-mkn', 'Neuvedena');
+      const naca = val('d-naca', '-');
+      const cpalp = val('u-nemocnice', '-');
+
+      const report = `**🚑 ZÁZNAM O VÝJEZDU ZZS (EKP)**
+**Výzva:** #${cislo} | **Vozidlo:** ${vozidlo}
+**Místo:** ${misto}
+**Pacient:** ${pacient}
+**Diagnóza:** ${dg} (NACA: ${naca})
+**Předání:** ${cpalp}`;
+
+      navigator.clipboard.writeText(report).then(() => {
+        alert('Stručný záznam o výjezdu byl zkopírován do schránky.');
+      });
+    }
+
+    async function checkUrlForRecord() {
+      initTheme();
+
+      let shift = null;
+      try { shift = JSON.parse(localStorage.getItem('zzs_active_shift') || 'null'); } catch(e){}
+
+      try {
+        const acceptedCall = JSON.parse(localStorage.getItem('zzs_accepted_dispatch') || 'null');
+        if (acceptedCall) {
+          localStorage.removeItem('zzs_accepted_dispatch');
+          applyCallDataToForm(acceptedCall, true);
+          return;
+        }
+      } catch(e) {}
+
+      const params = new URLSearchParams(window.location.search);
+      const loadId = params.get('loadId');
+
+      if (loadId) {
+        let rec = null;
+        try {
+          const res = await fetch(`${SERVER_URL}/api/records/${encodeURIComponent(loadId)}`);
+          if (res.ok) rec = await res.json();
+        } catch (e) {}
+
+        if (!rec) {
+          try {
+            const localRecords = JSON.parse(localStorage.getItem('zzs_records') || '[]');
+            rec = localRecords.find(r => r.id === loadId);
+          } catch(e) {}
+        }
+
+        if (rec && rec.formData) {
+          const fd = rec.formData;
+          for (let k in fd) {
+            const el = document.getElementById(k.replace(/_/g, '-'));
+            if (el) el.value = fd[k];
+          }
+          if (rec.vitals && rec.vitals.length > 0) {
+            const tbody = document.getElementById('vital-body');
+            if (tbody) {
+              tbody.innerHTML = '';
+              rec.vitals.forEach(v => addVitalRow(v.cas, v));
+            }
+          }
+          const st = document.getElementById('save-status');
+          if (st) {
+            st.textContent = `Načten záznam ${loadId}`;
+            st.className = 'ml-auto text-[11px] font-semibold text-blue-600 bg-blue-500/10 px-2 py-0.5 rounded';
+          }
+          updatePatientHeader();
+          return;
+        }
+      }
+
+      const newNum = await getNextSequenceNumber('ZOV');
+      const vCislo = document.getElementById('v-cislo');
+      if (vCislo) vCislo.value = newNum;
+
+      if (shift && shift.active) {
+        if (shift.vehicle && document.getElementById('p-vozidlo')) document.getElementById('p-vozidlo').value = shift.vehicle;
+        if (shift.type && document.getElementById('p-typ')) document.getElementById('p-typ').value = shift.type;
+        if (shift.base && document.getElementById('v-zakladna')) document.getElementById('v-zakladna').value = shift.base;
+        if (shift.paramedic) {
+          if (document.getElementById('p-nlzp')) document.getElementById('p-nlzp').value = shift.paramedic;
+          if (document.getElementById('u-predal')) document.getElementById('u-predal').value = shift.paramedic;
+        }
+        if (shift.driver && document.getElementById('p-ridic')) document.getElementById('p-ridic').value = shift.driver;
+        if (shift.physician && document.getElementById('p-lekar')) document.getElementById('p-lekar').value = shift.physician;
+      }
+
+      updatePatientHeader();
+    }
+
+    function loadDemoData() {
+      document.getElementById('t-vyzva').value = '15:15';
+      document.getElementById('t-vyjezd').value = '15:16';
+      document.getElementById('t-namiste').value = '15:22';
+      document.getElementById('t-osetreni').value = '15:23';
+      document.getElementById('t-transport').value = '15:40';
+      document.getElementById('t-cpalp').value = '15:52';
+      document.getElementById('t-predani').value = '15:56';
+      document.getElementById('t-volny').value = '16:05';
+      document.getElementById('t-zakladna').value = '16:15';
+      document.getElementById('t-ukonceni').value = '16:20';
+
+      document.getElementById('p-vozidlo').value = 'RZP-110 (Crafter)';
+      document.getElementById('p-typ').value = 'RZP';
+      document.getElementById('p-nlzp').value = 'Bc. Martin Dvořák';
+      document.getElementById('p-ridic').value = 'Karel Vlček';
+      document.getElementById('v-zakladna').value = 'ZZS PrahaRP - Nádražní';
+      document.getElementById('v-charakter').value = 'PRI - Primární zásah';
+      document.getElementById('v-nalehavost').value = 'II. Stupeň';
+      document.getElementById('v-misto').value = 'Evropská 145/22, Praha 6, 2. patro';
+      document.getElementById('v-indikace').value = 'Kolapsový stav, náhlá slabost, pád na zem';
+      document.getElementById('v-soucinnost').value = 'Bez součinnosti';
+      document.getElementById('v-volajici').value = 'Manželka pacienta, tel.: 777 123 456';
+
+      document.getElementById('p-jmeno').value = 'Jan';
+      document.getElementById('p-prijmeni').value = 'Novák';
+      document.getElementById('p-rc').value = '650812/1234';
+      document.getElementById('p-vek').value = '12.08.1965 (59 let)';
+      document.getElementById('p-pohlavi').value = 'Muž';
+      document.getElementById('p-stat').value = 'Česká republika';
+      document.getElementById('p-zp').value = '111 - VZP';
+      document.getElementById('p-bydliste').value = 'Evropská 145/22, 160 00 Praha 6';
+      document.getElementById('p-kontakt').value = 'Marie Nováková (manželka), 777 123 456';
+      
+      document.getElementById('a-alergie').value = 'Penicilin (edém dýchacích cest v anamnéze)';
+      document.getElementById('a-varovani').value = 'Užívá Warfarin (chronická antikoagulace)';
+      document.getElementById('a-oa').value = 'Arteriální hypertenze II. st., ICHS chron., stav po PCI (2021), DM 2. typu na PAD.';
+      document.getElementById('a-ra').value = 'Otec: IM v 62 letech. Matka: hypertenze, cévní mozková příhoda v 74 letech.';
+      document.getElementById('a-sa').value = 'Starobní důchodce, dříve technik. Žije v bytě 2+1 s manželkou, plně soběstačný.';
+      document.getElementById('a-ta').value = 'Kuřák (cca 10 cig/den po dobu 30 let), alkohol příležitostně, drogy neguje.';
+      document.getElementById('a-fa').value = 'Prestarium Neo 5mg 1-0-0, Betaloc ZOK 50mg 1-0-0, Glucophage 1000mg 0-0-1, Warfarin dle INR.';
+      document.getElementById('a-dvp').value = 'Neevidováno / Neguje';
+
+      document.getElementById('s-no').value = 'Dnes kolem 15:00 náhlý vznik slabosti, pocit točení hlavy a pád na koberec. Krátkodobé bezvědomí cca 30 s bez křečí. Nyní při vědomí, bolest hlavy v temporální krajině a l. ramene.';
+      document.getElementById('s-vedomi').value = 'Při vědomí, plně orientován místem, časem i osobou, spolupracuje';
+      document.getElementById('s-zornice').value = 'Izo, fotoreakce symetrická oboustranně, bez nystagmu';
+      document.getElementById('s-kuze').value = 'Bledá, opocená, kapilární návrat do 2 s';
+      document.getElementById('s-hlava').value = 'Levý spánek drobný hematom bez lacerace, krk volný, nebolestivý';
+      document.getElementById('s-dychani').value = 'Sklípkové, čisté, eupnoe, hrudník stabilní bez krepitace';
+      document.getElementById('s-bricho').value = 'Břicho měkké, prohmatné, nebolestivé, pánev pevná';
+      document.getElementById('s-koncetiny').value = 'HKK: citlivost l. ramene, hybnost zachována. DKK: bez otoků.';
+      document.getElementById('s-neurologie').value = 'Bez lateralizace, Mingazzini symetrický bez poklesu, řeč plynulá (FAST neg.)';
+
+      const tbody = document.getElementById('vital-body');
+      if (tbody) {
+        tbody.innerHTML = '';
+        addVitalRow('15:24', { tk: '95/60', tf: '52', df: '16', spo2: '96%', gly: '5.8', gcs: '15', ekg: 'Sinusová bradykardie' });
+        addVitalRow('15:45', { tk: '120/75', tf: '68', df: '15', spo2: '98%', gly: '6.1', gcs: '15', ekg: 'Sinusový rytmus' });
+      }
+
+      document.getElementById('t-leky').value = 'Plasmalyte 500 ml i.v. infuze (15:28, aplikoval Dvořák)';
+      document.getElementById('t-vykony').value = '1x Kanylace PŽK G20 l. předloktí, 1x EKG 12 svodů, 1x Monitorace vitálních funkcí, 1x Glykémie.';
+      document.getElementById('t-material').value = 'Katétr i.v. 20G, infuzní set, EKG elektrody 10ks, rukavice nitrilové, transportní křeslo.';
+
+      document.getElementById('d-mkn').value = 'R55 - Mdloba (synkopa) a zhroucení';
+      document.getElementById('d-vedlejsi').value = 'S00.0 - Povrchní poranění hlavy';
+      document.getElementById('d-naca').value = 'III. Středně těžké, bez ohrožení života';
+      document.getElementById('d-upresneni').value = 'Stav po vazovagální synkopě s ortostatickou hypotenzí a bradykardií. Stav po pádu s lehkou kontuzí hlavy a ramene. Po volumoterapii kardiopulmonálně stabilizován.';
+
+      document.getElementById('u-zpusob').value = 'Předán do zdravotnického zařízení (CPALP)';
+      document.getElementById('u-nemocnice').value = 'FN Motol - Urgentní příjem dospělých (CUP)';
+      document.getElementById('u-oddeleni').value = 'Expektační lůžka / Interní příjem';
+      document.getElementById('u-predal').value = 'Bc. Martin Dvořák (ev. č. 4589)';
+      document.getElementById('u-prevzal').value = 'MUDr. Alena Veselá (CUP FN Motol)';
+      document.getElementById('u-poznamka').value = 'Transport v polosedě bez komplikací. Předán včetně EKG záznamu a osobních věcí.';
+
+      updatePatientHeader();
+      const st = document.getElementById('save-status');
+      if (st) {
+        st.textContent = 'Načten vzorový akutní výjezd';
+        st.className = 'ml-auto text-[11px] font-semibold text-sky-600 bg-sky-500/10 px-2 py-0.5 rounded';
+      }
+      alert('Vzorová data výjezdu byla načtena.');
+    }
+
+    window.addEventListener('DOMContentLoaded', checkUrlForRecord);
+  </script>
+</body>
+</html>

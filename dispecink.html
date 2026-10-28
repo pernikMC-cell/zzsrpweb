@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ZOS PrahaRP | Dispečink</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    body { background-color: #0f172a; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; }
+    .cad-input { font-size: 12px; border: 1px solid #334155; border-radius: 4px; padding: 5px 8px; background-color: #1e293b; color: #f8fafc; width: 100%; outline: none; }
+    .cad-input:focus { border-color: #38bdf8; box-shadow: 0 0 0 1px #38bdf8; }
+    .cad-label { font-size: 11px; color: #94a3b8; font-weight: 600; margin-bottom: 2px; display: block; text-transform: uppercase; }
+    .cad-panel { background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 14px; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <header class="bg-[#0b1329] border-b-2 border-red-600 px-4 py-2.5 flex items-center justify-between shadow-md">
+    <div class="flex items-center gap-3">
+      <a href="index.html" class="bg-slate-800 hover:bg-slate-700 text-xs px-2.5 py-1 rounded font-semibold text-slate-300 transition">
+        ← Zpět na portál
+      </a>
+      <div class="flex items-center gap-2">
+        <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" id="ws-dot"></span>
+        <span class="font-bold text-sm tracking-wide text-white">ZOS PrahaRP – Operační řízení (Linka 155)</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-4 text-xs font-mono">
+      <span class="text-slate-400">STAV SPOJENÍ: <b class="text-emerald-400" id="ws-text">PŘIPOJOVÁNÍ...</b></span>
+      <span class="bg-slate-800 px-3 py-1 rounded text-sky-400 font-bold" id="live-clock">--:--:--</span>
+    </div>
+  </header>
+
+  <main class="flex-1 p-4 max-w-7xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+    <!-- ZADÁNÍ TÍSŇOVÉHO HOVORU -->
+    <div class="lg:col-span-7 flex flex-col gap-4">
+      <div class="cad-panel border-t-4 border-t-amber-500">
+        <div class="flex items-center justify-between border-b border-slate-700 pb-2 mb-3">
+          <h2 class="font-bold text-base text-amber-400">📞 Nová tísňová výzva</h2>
+          <span class="font-mono text-xs bg-slate-800 px-2.5 py-0.5 rounded text-amber-300 font-bold" id="cad-event-id">VÝZVA: -</span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+          <div>
+            <label class="cad-label">Čas volání</label>
+            <input type="text" id="cad-time" class="cad-input font-mono font-bold text-amber-400" readonly>
+          </div>
+          <div>
+            <label class="cad-label">Telefon volajícího *</label>
+            <input type="text" id="cad-phone" class="cad-input" placeholder="např. 777 123 456">
+          </div>
+          <div>
+            <label class="cad-label">Oznamovatel</label>
+            <input type="text" id="cad-caller" class="cad-input" placeholder="Jméno / vztah">
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="cad-label">Místo události (Ulice, č.p., obec, patro) *</label>
+          <input type="text" id="cad-location" class="cad-input font-bold text-white text-sm" placeholder="např. Evropská 145/22, Praha 6, 2. patro">
+        </div>
+
+        <div class="mb-3">
+          <label class="cad-label">Indikace výjezdu *</label>
+          <input type="text" id="cad-indication" class="cad-input font-semibold text-amber-300 mb-1.5" placeholder="Důvod výjezdu">
+          <div class="flex flex-wrap gap-1 text-[11px]">
+            <button type="button" onclick="document.getElementById('cad-indication').value='Bezvědomí / Kolaps'" class="px-2 py-0.5 bg-slate-700 hover:bg-slate-600 rounded">Bezvědomí</button>
+            <button type="button" onclick="document.getElementById('cad-indication').value='Bolest na hrudi / AKS'" class="px-2 py-0.5 bg-slate-700 hover:bg-slate-600 rounded">Bolest na hrudi</button>
+            <button type="button" onclick="document.getElementById('cad-indication').value='Dušnost'" class="px-2 py-0.5 bg-slate-700 hover:bg-slate-600 rounded">Dušnost</button>
+            <button type="button" onclick="document.getElementById('cad-indication').value='Dopravní nehoda'" class="px-2 py-0.5 bg-slate-700 hover:bg-slate-600 rounded">Nehoda</button>
+            <button type="button" onclick="document.getElementById('cad-indication').value='KPR - Zástava oběhu'" class="px-2 py-0.5 bg-red-900 text-red-200 font-bold rounded">KPR</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+          <div>
+            <label class="cad-label">Jméno pacienta</label>
+            <input type="text" id="cad-patient" class="cad-input" placeholder="Jan Novák">
+          </div>
+          <div>
+            <label class="cad-label">Věk / Pohlaví</label>
+            <input type="text" id="cad-patient-age" class="cad-input" placeholder="cca 55 let, Muž">
+          </div>
+          <div>
+            <label class="cad-label">Naléhavost *</label>
+            <select id="cad-priority" class="cad-input font-bold text-amber-300">
+              <option value="I. Stupeň">I. Stupeň (Akutní)</option>
+              <option value="II. Stupeň" selected>II. Stupeň (Naléhavý)</option>
+              <option value="III. Stupeň">III. Stupeň (Odložitelný)</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="cad-label">Doplňující pokyny pro posádku</label>
+          <input type="text" id="cad-note" class="cad-input" placeholder="Kód vchodu, pes, patro...">
+        </div>
+      </div>
+    </div>
+
+    <!-- SEZNAM PŘIHLÁŠENÝCH POSÁDEK -->
+    <div class="lg:col-span-5 flex flex-col gap-4">
+      <div class="cad-panel border-t-4 border-t-red-600 flex-1 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between border-b border-slate-700 pb-2 mb-3">
+            <h2 class="font-bold text-base text-white flex items-center gap-2">
+              <span>🚑 Přihlášené posádky ve službě</span>
+              <span id="crew-count-badge" class="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full font-mono">0</span>
+            </h2>
+            <button onclick="fetchCrewsManual()" class="text-xs text-sky-400 hover:underline">🔄 Obnovit</button>
+          </div>
+
+          <div id="crews-container" class="flex flex-col gap-2 max-h-72 overflow-y-auto mb-4">
+            <!-- Posádky -->
+          </div>
+        </div>
+
+        <div class="border-t border-slate-700 pt-4 mt-auto flex flex-col gap-2">
+          <button type="button" id="btn-dispatch" onclick="dispatchSelectedCrew()" class="w-full bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded font-bold text-sm tracking-wide shadow-lg flex items-center justify-center gap-2 transition disabled:opacity-40 disabled:cursor-not-allowed">
+            <span>🚨 VYSLAT POSÁDKU (PŘEDVYPLNIT EKP)</span>
+          </button>
+          <button type="button" onclick="quickAddTestCrew()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-1.5 px-3 rounded text-xs transition border border-slate-700">
+            + Přihlásit testovací posádku (RZP-110)
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    // Automatická detekce serveru (port 2584)
+    const SERVER_URL = "https://37.60.241.137:2584";
+    const socket = io(SERVER_URL, { transports: ['websocket', 'polling'] });
+
+    function updateClock() {
+      document.getElementById('live-clock').textContent = new Date().toTimeString().slice(0, 8);
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    function initCall() {
+      const now = new Date();
+      document.getElementById('cad-time').value = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+      document.getElementById('cad-event-id').textContent = 'VÝZVA: ZOS-' + Date.now().toString().slice(-6);
+    }
+
+    // Vykreslení posádek
+    function renderCrews(crews) {
+      const container = document.getElementById('crews-container');
+      const btn = document.getElementById('btn-dispatch');
+      const badge = document.getElementById('crew-count-badge');
+      container.innerHTML = '';
+
+      badge.textContent = crews ? crews.length : 0;
+
+      if (!crews || crews.length === 0) {
+        container.innerHTML = `
+          <div class="p-4 bg-slate-800/80 border border-dashed border-slate-600 rounded text-center">
+            <p class="font-bold text-amber-400 text-xs">Žádná posádka není přihlášena.</p>
+            <p class="text-[11px] text-slate-400 mt-1">Záchranáři se musí přihlásit na hlavní stránce přes „Nástup do služby“.</p>
+          </div>
+        `;
+        btn.disabled = true;
+        return;
+      }
+
+      btn.disabled = false;
+      crews.forEach((c, idx) => {
+        const div = document.createElement('label');
+        div.className = 'flex items-center justify-between p-3 bg-slate-800 border border-slate-700 hover:border-amber-400 rounded cursor-pointer transition';
+        div.innerHTML = `
+          <div class="flex items-center gap-3">
+            <input type="radio" name="selected_crew" value="${c.vehicle}" ${idx === 0 ? 'checked' : ''} class="w-4 h-4 text-amber-500">
+            <div>
+              <p class="font-bold text-white text-xs">${c.vehicle} <span class="bg-blue-900/60 text-sky-300 px-1.5 py-0.5 rounded text-[10px]">${c.type}</span></p>
+              <p class="text-[11px] text-slate-300">Vedoucí: <b>${c.paramedic}</b>${c.driver ? ' | ' + c.driver : ''}</p>
+              <p class="text-[10px] text-slate-400">Základna: ${c.base || '-'}</p>
+            </div>
+          </div>
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-900 text-emerald-300 border border-emerald-700">VOLNÝ</span>
+        `;
+        div.dataset.crew = JSON.stringify(c);
+        container.appendChild(div);
+      });
+    }
+
+    // 1. WebSocket příjem
+    socket.on('crews:list', (crews) => {
+      renderCrews(crews);
+    });
+
+    // 2. REST API záložní načtení
+    async function fetchCrewsManual() {
+      try {
+        const res = await fetch(`${SERVER_URL}/api/crews`);
+        const data = await res.json();
+        renderCrews(data);
+      } catch (e) {
+        console.error('Chyba REST API posádek:', e);
+      }
+    }
+
+    socket.on('connect', () => {
+      document.getElementById('ws-dot').className = 'w-3 h-3 rounded-full bg-emerald-500 animate-pulse';
+      document.getElementById('ws-text').textContent = 'ONLINE (WS)';
+      socket.emit('crews:get');
+      fetchCrewsManual();
+    });
+
+    socket.on('disconnect', () => {
+      document.getElementById('ws-dot').className = 'w-3 h-3 rounded-full bg-red-500';
+      document.getElementById('ws-text').textContent = 'OFFLINE';
+    });
+
+    // Odeslání výzvy
+    function dispatchSelectedCrew() {
+      const radio = document.querySelector('input[name="selected_crew"]:checked');
+      if (!radio) return alert('Není vybrána žádná posádka.');
+
+      const location = document.getElementById('cad-location').value.trim();
+      const indication = document.getElementById('cad-indication').value.trim();
+      if (!location || !indication) return alert('Zadejte místo události a indikaci.');
+
+      const crew = JSON.parse(radio.closest('label').dataset.crew);
+      const eventId = document.getElementById('cad-event-id').textContent.replace('VÝZVA: ', '');
+
+      const payload = {
+        id: eventId,
+        time: document.getElementById('cad-time').value,
+        vehicle: crew.vehicle,
+        crewType: crew.type,
+        paramedic: crew.paramedic,
+        driver: crew.driver,
+        physician: crew.physician,
+        base: crew.base,
+        location: location,
+        indication: indication,
+        phone: document.getElementById('cad-phone').value,
+        caller: document.getElementById('cad-caller').value,
+        patient: document.getElementById('cad-patient').value,
+        patientAge: document.getElementById('cad-patient-age').value,
+        priority: document.getElementById('cad-priority').value,
+        note: document.getElementById('cad-note').value
+      };
+
+      socket.emit('dispatch:send', payload);
+      alert(`🚨 Posádka ${crew.vehicle} byla vyslána k události ${eventId}!`);
+      document.getElementById('cad-location').value = '';
+      document.getElementById('cad-indication').value = '';
+      initCall();
+    }
+
+    // Rychlé přihlášení zkušební posádky přímo z dispečinku
+    function quickAddTestCrew() {
+      const testCrew = {
+        vehicle: 'RZP-110 (Crafter)',
+        type: 'RZP',
+        base: 'Výjezdové stanoviště Nádražní',
+        paramedic: 'Bc. Martin Dvořák',
+        driver: 'Karel Vlček',
+        physician: ''
+      };
+      socket.emit('crew:login', testCrew);
+      fetch(`${SERVER_URL}/api/crews/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(testCrew)
+      }).then(() => fetchCrewsManual());
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initCall();
+      fetchCrewsManual();
+    });
+  </script>
+</body>
+</html>

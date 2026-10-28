@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Negativní reverz | ZZS PrahaRP</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #f4f6f8; color: #1b2a3a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; }
+    .rev-input { font-size: 12px; border: 1px solid #9fb7d4; border-radius: 3px; padding: 4px 8px; background-color: #fff; width: 100%; outline: none; }
+    .rev-input:focus { border-color: #1d72b8; box-shadow: 0 0 0 1px #1d72b8; }
+    .rev-label { font-size: 11px; color: #0b5394; font-weight: 600; margin-bottom: 2px; display: block; }
+    .rev-fieldset { border: 1px solid #b8cce4; border-radius: 4px; padding: 10px 14px 12px; margin-bottom: 12px; background: #fff; }
+    .rev-legend { font-size: 12px; font-weight: bold; color: #0b5394; padding: 0 6px; background: #fff; border-left: 3px solid #c4161c; }
+
+    @media print {
+      body * { visibility: hidden; }
+      #print-protocol, #print-protocol * { visibility: visible; }
+      #print-protocol { position: absolute; left: 0; top: 0; width: 100%; display: block !important; }
+      .no-print { display: none !important; }
+      @page { size: A4; margin: 12mm; }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Horní navigační lišta -->
+  <header class="no-print bg-[#152b43] text-white px-4 py-2 flex items-center justify-between border-b-[3px] border-[#c4161c] shadow-sm">
+    <div class="flex items-center gap-3">
+      <a href="index.html" class="bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded text-xs font-semibold text-white transition">
+        ← Rozcestník
+      </a>
+      <a href="archiv.html" class="bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded text-xs font-semibold text-white transition">
+        📂 Kniha výjezdů
+      </a>
+      <span class="font-bold tracking-wide text-sm">ZZS PrahaRP | Negativní reverz</span>
+    </div>
+    <div class="flex items-center gap-3 text-xs">
+      <span class="bg-red-800/60 px-2 py-0.5 rounded font-mono font-bold" id="hdr-event-no">Výzva: -</span>
+      <span class="text-gray-300">§ 34 zákona č. 372/2011 Sb.</span>
+    </div>
+  </header>
+
+  <!-- Nástrojová lišta -->
+  <nav class="no-print bg-[#e3ecf5] border-b border-[#b8cce4] px-4 py-1.5 flex flex-wrap items-center gap-2 shadow-sm text-xs">
+    <button type="button" onclick="saveReverz()" class="px-3 py-1 bg-white border border-[#9fb7d4] rounded hover:bg-[#d8e6f3] font-semibold text-[#0b5394]">
+      💾 Uložit do Knihy výjezdů
+    </button>
+    <button type="button" onclick="printProtocol()" class="px-3 py-1 bg-[#152b43] text-white rounded hover:bg-[#0e1f31] font-semibold">
+      🖨️ Tisk protokolu (PDF)
+    </button>
+    <button type="button" onclick="copyDiscordReport()" class="px-3 py-1 bg-[#c4161c] text-white rounded hover:bg-[#a51117] font-semibold">
+      📋 Kopírovat na Discord
+    </button>
+    <button type="button" onclick="loadDemoReverz()" class="px-2.5 py-1 bg-gray-100 border border-gray-300 rounded text-gray-700 hover:bg-gray-200">
+      ⚡ Vzorový reverz
+    </button>
+    <span class="ml-auto text-[11px] text-[#4a5b6e]" id="save-status">Stav: Nový reverz</span>
+  </nav>
+
+  <!-- Formulářová část -->
+  <main class="flex-1 p-4 max-w-4xl w-full mx-auto no-print">
+
+    <!-- 1. Identifikace události a posádky -->
+    <div class="rev-fieldset">
+      <span class="rev-legend">1. Identifikace události a posádky ZZS (Automaticky ze služby)</span>
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-2">
+        <div>
+          <label class="rev-label">Číslo výzvy (Automatické)</label>
+          <input type="text" id="r-cislo" class="rev-input font-mono font-bold bg-blue-50/50" readonly placeholder="Generuje se automaticky...">
+        </div>
+        <div>
+          <label class="rev-label">Datum a čas odmítnutí *</label>
+          <input type="text" id="r-cas" class="rev-input font-semibold" placeholder="DD.MM.RRRR hh:mm">
+        </div>
+        <div>
+          <label class="rev-label">Volací znak / Vozidlo *</label>
+          <input type="text" id="r-vozidlo" class="rev-input font-semibold" placeholder="např. RZP-110">
+        </div>
+        <div>
+          <label class="rev-label">Místo sepsání reverzu *</label>
+          <input type="text" id="r-misto" class="rev-input" placeholder="Adresa sepsání nesouhlasu">
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+        <div>
+          <label class="rev-label">Zdravotnický pracovník ZZS (jméno a os. číslo) *</label>
+          <input type="text" id="r-zdravotnik" class="rev-input font-semibold" placeholder="Jméno a ev. číslo záchranáře/lékaře">
+        </div>
+        <div>
+          <label class="rev-label">Druhý člen posádky / Svědek ZZS *</label>
+          <input type="text" id="r-svedek-zzs" class="rev-input" placeholder="Jméno řidiče / dalšího člena">
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Identifikace pacienta -->
+    <div class="rev-fieldset">
+      <span class="rev-legend">2. Identifikace pacienta (osoby odmítající péči)</span>
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-2">
+        <div>
+          <label class="rev-label">Jméno a příjmení pacienta *</label>
+          <input type="text" id="r-pacient" class="rev-input font-bold" placeholder="Jméno a příjmení">
+        </div>
+        <div>
+          <label class="rev-label">Rodné číslo / Datum nar. *</label>
+          <input type="text" id="r-rc" class="rev-input font-mono" placeholder="RRMMDD/XXXX">
+        </div>
+        <div>
+          <label class="rev-label">Zdravotní pojišťovna</label>
+          <input type="text" id="r-zp" class="rev-input" placeholder="např. 111 - VZP">
+        </div>
+        <div>
+          <label class="rev-label">Trvalé bydliště</label>
+          <input type="text" id="r-bydliste" class="rev-input" placeholder="Bydliště pacienta">
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Předmět odmítnutí péče -->
+    <div class="rev-fieldset border-amber-300 bg-amber-50/20">
+      <span class="rev-legend text-amber-800">3. Předmět nesouhlasu pacienta</span>
+      <p class="text-xs text-gray-600 mb-2 mt-1">Označte rozsah péče, kterou pacient po náležitém poučení odmítá:</p>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs font-semibold">
+        <label class="flex items-center gap-2 p-2 bg-white border border-gray-300 rounded cursor-pointer">
+          <input type="checkbox" id="r-odm-transport" class="w-4 h-4 text-red-600">
+          Odmítnutí transportu do nemocnice (CPALP)
+        </label>
+        <label class="flex items-center gap-2 p-2 bg-white border border-gray-300 rounded cursor-pointer">
+          <input type="checkbox" id="r-odm-vysetreni" class="w-4 h-4 text-red-600">
+          Odmítnutí vyšetření a monitorace
+        </label>
+        <label class="flex items-center gap-2 p-2 bg-white border border-gray-300 rounded cursor-pointer">
+          <input type="checkbox" id="r-odm-lecba" class="w-4 h-4 text-red-600">
+          Odmítnutí medikace a invazivních výkonů
+        </label>
+      </div>
+    </div>
+
+    <!-- 4. Zjištěný stav, navržená péče a poučení o rizicích -->
+    <div class="rev-fieldset">
+      <span class="rev-legend">4. Zjištěný stav a poučení pacienta o možných následcích</span>
+      <div class="mt-2">
+        <label class="rev-label">Zjištěný zdravotní stav a doporučený postup ZZS *</label>
+        <textarea id="r-stav" rows="2" class="rev-input h-14" placeholder="Popis zdravotního stavu a doporučení posádky..."></textarea>
+      </div>
+      <div class="mt-2">
+        <label class="rev-label text-red-700">Přesné poučení o možných následcích a rizicích odmítnutí (včetně ohrožení života) *</label>
+        <textarea id="r-rizika" rows="3" class="rev-input h-20 border-red-300 bg-red-50/30" placeholder="Konkrétní rizika zhoršení stavu, ohrožení života nebo trvalých následků..."></textarea>
+      </div>
+      <div class="mt-2">
+        <label class="rev-label">Důvod odmítnutí péče uvedený pacientem</label>
+        <input type="text" id="r-duvod" class="rev-input" placeholder="Důvod, který pacient uvedl pro odmítnutí péče">
+      </div>
+    </div>
+
+    <!-- 5. Posouzení způsobilosti a schopnosti rozhodovat -->
+    <div class="rev-fieldset">
+      <span class="rev-legend">5. Posouzení způsobilosti pacienta k odmítnutí péče</span>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
+        <div>
+          <label class="rev-label">Stav vědomí & Orientace *</label>
+          <input type="text" id="r-vedomi" class="rev-input" placeholder="např. GCS 15, plně orientován">
+        </div>
+        <div>
+          <label class="rev-label">Vliv alkoholu a návykových látek *</label>
+          <select id="r-alkohol" class="rev-input">
+            <option value="" disabled selected>Zvolte stav...</option>
+            <option value="Bez známek ovlivnění alkoholem či omamnými látkami">Bez známek ovlivnění alkoholem / drogami</option>
+            <option value="Požití alkoholu přiznává, je však plně schopen chápat situaci">Požití alkoholu přiznává, schopen chápat situaci</option>
+            <option value="Jiné">Jiné (upřesněno v textu)</option>
+          </select>
+        </div>
+        <div>
+          <label class="rev-label">Schopnost posoudit následky svého rozhodnutí *</label>
+          <select id="r-schopnost" class="rev-input">
+            <option value="" disabled selected>Zvolte hodnocení...</option>
+            <option value="Pacient je plně schopen posoudit povahu i následky svého rozhodnutí">Plně schopen chápat poučení a následky</option>
+            <option value="Omezená schopnost (nutno kontaktovat PČR / PZS)">Omezená schopnost (vyžaduje zvláštní postup)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. Podpisy a závěrečné prohlášení -->
+    <div class="rev-fieldset bg-gray-50 border-gray-300">
+      <span class="rev-legend">6. Prohlášení a podpisy zúčastněných stran</span>
+      <div class="text-[11px] text-gray-700 space-y-1 mt-2 p-2 bg-white border border-gray-200 rounded">
+        <p><b>Zákonné prohlášení pacienta:</b> Prohlašuji, že jsem byl/a ošetřujícím zdravotnickým personálem ZZS plně a srozumitelně poučen/a o svém zdravotním stavu, o potřebnosti navrhovaného vyšetření / ošetření / transportu do nemocnice a o všech závažných rizicích a možných nepříznivých následcích mého odmítnutí, včetně rizika trvalého poškození zdraví a smrti. Přesto svobodně a vážně odmítám poskytnutí výše uvedené péče a přebírám za tento krok plnou odpovědnost.</p>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+        <div>
+          <label class="rev-label">Status podpisu pacienta *</label>
+          <select id="r-podpis-status" class="rev-input">
+            <option value="Podepsáno pacientem" selected>Podepsáno pacientem</option>
+            <option value="Pacient odmítl podepsat">Pacient odmítl podepsat</option>
+            <option value="Podepsáno zákonným zástupcem">Podepsáno zákonným zástupcem</option>
+          </select>
+        </div>
+        <div>
+          <label class="rev-label">Nezávislý svědek odmítnutí (jméno, vztah / služební číslo)</label>
+          <input type="text" id="r-svedek" class="rev-input" placeholder="Jméno svědka (příbuzný, PČR...)">
+        </div>
+        <div>
+          <label class="rev-label">Předávající / Ošetřující záchranář</label>
+          <input type="text" id="r-podpis-zzs" class="rev-input font-semibold" placeholder="Jméno záchranáře / lékaře">
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- TISKOVÝ PROTOKOL -->
+  <div id="print-protocol" class="hidden p-6 font-sans text-black max-w-4xl mx-auto bg-white">
+    <div class="border-b-2 border-black pb-2 mb-3 flex justify-between items-start">
+      <div>
+        <h1 class="text-base font-bold uppercase tracking-wider">Zdravotnická záchranná služba</h1>
+        <p class="text-xs font-bold text-red-700">NEGATIVNÍ REVERZ – NESOUHLAS S POSKYTNUTÍM ZDRAVOTNÍCH SLUŽEB</p>
+        <p class="text-[10px] text-gray-600">dle ustanovení § 34 odst. 3 zákona č. 372/2011 Sb., o zdravotních službách[cite: 13]</p>
+      </div>
+      <div class="text-right text-xs">
+        <p>Číslo události: <b id="pr-cislo" class="font-mono"></b></p>
+        <p>Datum a čas: <b id="pr-cas"></b></p>
+        <p>Vozidlo: <span id="pr-vozidlo"></span></p>
+      </div>
+    </div>
+
+    <!-- 1. Pacient a místo -->
+    <div class="border border-gray-400 p-2 mb-2 text-xs leading-tight">
+      <div class="font-bold border-b border-gray-300 pb-0.5 mb-1">1. IDENTIFIKACE PACIENTA</div>
+      <div class="grid grid-cols-2 gap-2">
+        <p>Jméno a příjmení: <b id="pr-pacient"></b></p>
+        <p>Rodné číslo: <b id="pr-rc"></b> | ZP: <span id="pr-zp"></span></p>
+      </div>
+      <p class="mt-1">Trvalé bydliště: <span id="pr-bydliste"></span></p>
+      <p>Místo odmítnutí péče: <span id="pr-misto"></span></p>
+    </div>
+
+    <!-- 2. Předmět odmítnutí a posouzení -->
+    <div class="border border-gray-400 p-2 mb-2 text-xs leading-tight">
+      <div class="font-bold border-b border-gray-300 pb-0.5 mb-1">2. PŘEDMĚT ODMÍTNUTÍ A ZPŮSOBILOST K ROZHODOVÁNÍ</div>
+      <p><b>Předmět nesouhlasu:</b> <span id="pr-odmitnuti" class="font-bold text-red-700"></span></p>
+      <p class="mt-1"><b>Důvod udaný pacientem:</b> <span id="pr-duvod"></span></p>
+      <hr class="my-1 border-gray-300">
+      <p><b>Stav vědomí a orientace:</b> <span id="pr-vedomi"></span></p>
+      <p><b>Ovlivnění návykovými látkami:</b> <span id="pr-alkohol"></span></p>
+      <p><b>Posouzení schopnosti rozhodovat:</b> <span id="pr-schopnost"></span></p>
+    </div>
+
+    <!-- 3. Zjištěný stav a poučení o rizicích -->
+    <div class="border border-gray-400 p-2 mb-2 text-xs leading-tight">
+      <div class="font-bold border-b border-gray-300 pb-0.5 mb-1">3. ZJIŠTĚNÝ STAV A POUČENÍ O MOŽNÝCH NÁSLEDCÍCH</div>
+      <p><b>Aktuální zjištěný zdravotní stav a doporučení ZZS:</b></p>
+      <p class="bg-gray-50 p-1 rounded mt-0.5 mb-1" id="pr-stav"></p>
+      <p class="text-red-800"><b>Výslovné poučení o možných rizicích (včetně nebezpečí trvalých následků či smrti):</b></p>
+      <p class="bg-red-50 p-1 border border-red-200 rounded mt-0.5" id="pr-rizika"></p>
+    </div>
+
+    <!-- 4. Právní prohlášení a podpisy -->
+    <div class="border border-gray-400 p-2 mb-3 text-xs leading-tight">
+      <div class="font-bold border-b border-gray-300 pb-0.5 mb-1">4. PROHLÁŠENÍ PACIENTA A PODPISY</div>
+      <p class="text-[10px] text-justify text-gray-700 mb-6">
+        Prohlašuji, že jsem byl/a ošetřujícím personálem Zdravotnické záchranné služby náležitě, srozumitelně a v plném rozsahu poučen/a o svém aktuálním zdravotním stavu, o potřebě dalšího navrženého vyšetření či transportu do lůžkového zdravotnického zařízení a o možných vážných následcích odmítnutí této péče, včetně rizika závažného zhoršení zdravotního stavu, nevratného poškození a smrti. Svému poučení jsem plně porozuměl/a a přes uvedená varování svobodně a vážně odmítám poskytnutí zdravotní péče či transport.
+      </p>
+
+      <div class="grid grid-cols-3 gap-4 text-center mt-8 pt-4 border-t border-gray-300 text-[11px]">
+        <div>
+          <p class="border-t border-black pt-1">Podpis pacienta:<br><b id="pr-podpis-info"></b></p>
+        </div>
+        <div>
+          <p class="border-t border-black pt-1">Podpis svědka:<br><b id="pr-svedek"></b></p>
+        </div>
+        <div>
+          <p class="border-t border-black pt-1">Zdravotnický pracovník ZZS:<br><b id="pr-zdravotnik"></b></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function getNextSequenceNumber(prefix = 'REV') {
+      const year = new Date().getFullYear().toString().slice(-2);
+      const storageKey = `zzs_seq_${prefix}_${year}`;
+      let lastNum = parseInt(localStorage.getItem(storageKey) || '0', 10);
+      lastNum += 1;
+      return `${prefix}-${year}-${String(lastNum).padStart(3, '0')}`;
+    }
+
+    function confirmSequenceNumber(prefix = 'REV') {
+      const year = new Date().getFullYear().toString().slice(-2);
+      const storageKey = `zzs_seq_${prefix}_${year}`;
+      let lastNum = parseInt(localStorage.getItem(storageKey) || '0', 10);
+      localStorage.setItem(storageKey, (lastNum + 1).toString());
+    }
+
+    function val(id, fallback = '') {
+      const el = document.getElementById(id);
+      if (!el) return fallback;
+      const v = (el.value || '').trim();
+      return v ? v : fallback;
+    }
+
+    function saveReverz() {
+      const id = document.getElementById('r-cislo').value;
+      const pacient = val('r-pacient', 'Neznámý pacient');
+
+      const record = {
+        id: id,
+        type: 'REVERZ',
+        isClosed: true,
+        date: val('r-cas') || new Date().toLocaleString('cs-CZ'),
+        vehicle: val('r-vozidlo'),
+        patient: pacient,
+        rc: val('r-rc'),
+        reason: val('r-duvod', 'Odmítnutí transportu/péče'),
+        formData: {
+          r_cislo: id, r_cas: val('r-cas'), r_vozidlo: val('r-vozidlo'), r_misto: val('r-misto'),
+          r_zdravotnik: val('r-zdravotnik'), r_svedek_zzs: val('r-svedek-zzs'), r_pacient: val('r-pacient'),
+          r_rc: val('r-rc'), r_zp: val('r-zp'), r_bydliste: val('r-bydliste'),
+          r_odm_transport: document.getElementById('r-odm-transport').checked,
+          r_odm_vysetreni: document.getElementById('r-odm-vysetreni').checked,
+          r_odm_lecba: document.getElementById('r-odm-lecba').checked,
+          r_stav: val('r-stav'), r_rizika: val('r-rizika'), r_duvod: val('r-duvod'),
+          r_vedomi: val('r-vedomi'), r_alkohol: val('r-alkohol'), r_schopnost: val('r-schopnost'),
+          r_podpis_status: val('r-podpis-status'), r_svedek: val('r-svedek'), r_podpis_zzs: val('r-podpis-zzs')
+        }
+      };
+
+      let records = [];
+      try {
+        records = JSON.parse(localStorage.getItem('zzs_records') || '[]');
+      } catch (e) { records = []; }
+
+      const existingIndex = records.findIndex(r => r.id === id);
+      if (existingIndex >= 0) {
+        records[existingIndex] = record;
+      } else {
+        records.unshift(record);
+        confirmSequenceNumber('REV');
+      }
+      localStorage.setItem('zzs_records', JSON.stringify(records));
+
+      document.getElementById('hdr-event-no').textContent = 'Výzva: ' + id;
+      const st = document.getElementById('save-status');
+      st.textContent = `Reverz uložen v knize (${new Date().toLocaleTimeString()})`;
+      st.className = 'ml-auto text-[11px] text-emerald-700 font-semibold';
+      alert(`Negativní reverz ${id} byl uložen do Knihy výjezdů.`);
+    }
+
+    function printProtocol() {
+      document.getElementById('pr-cislo').textContent = val('r-cislo', '-');
+      document.getElementById('pr-cas').textContent = val('r-cas', '-');
+      document.getElementById('pr-vozidlo').textContent = val('r-vozidlo', '-');
+      document.getElementById('pr-misto').textContent = val('r-misto', '-');
+      document.getElementById('pr-pacient').textContent = val('r-pacient', 'Neznámý / Neuvedeno');
+      document.getElementById('pr-rc').textContent = val('r-rc', '-');
+      document.getElementById('pr-zp').textContent = val('r-zp', '-');
+      document.getElementById('pr-bydliste').textContent = val('r-bydliste', '-');
+
+      const odmitnuto = [];
+      if (document.getElementById('r-odm-transport').checked) odmitnuto.push('Transport do nemocnice (CPALP)');
+      if (document.getElementById('r-odm-vysetreni').checked) odmitnuto.push('Vyšetření a monitoring');
+      if (document.getElementById('r-odm-lecba').checked) odmitnuto.push('Medikace a léčebné výkony');
+      document.getElementById('pr-odmitnuti').textContent = odmitnuto.join(', ') || 'Nespecifikováno';
+
+      document.getElementById('pr-duvod').textContent = val('r-duvod', 'Neuveden');
+      document.getElementById('pr-vedomi').textContent = val('r-vedomi', '-');
+      document.getElementById('pr-alkohol').textContent = val('r-alkohol', '-');
+      document.getElementById('pr-schopnost').textContent = val('r-schopnost', '-');
+      document.getElementById('pr-stav').textContent = val('r-stav', '-');
+      document.getElementById('pr-rizika').textContent = val('r-rizika', '-');
+
+      document.getElementById('pr-podpis-info').textContent = val('r-podpis-status', '-');
+      document.getElementById('pr-svedek').textContent = val('r-svedek', 'Druhý člen posádky');
+      document.getElementById('pr-zdravotnik').textContent = val('r-zdravotnik', '-');
+
+      window.print();
+    }
+
+    function copyDiscordReport() {
+      const cislo = val('r-cislo', '-');
+      const cas = val('r-cas', '-');
+      const pacient = val('r-pacient', 'Neuvedeno');
+      const misto = val('r-misto', '-');
+      const duvod = val('r-duvod', '-');
+      const zdravotnik = val('r-zdravotnik', '-');
+
+      const report = `**⚠️ NEGATIVNÍ REVERZ ZZS (PrahaRP)**
+**Výzva:** #${cislo} | **Čas:** ${cas}
+**Místo:** ${misto}
+**Pacient:** ${pacient}
+**Důvod odmítnutí:** ${duvod}
+**Poučení předal:** ${zdravotnik}
+**Výsledek:** Pacient odmítl péči/transport a podepsal negativní reverz dle § 34 zákona 372/2011 Sb.`;
+
+      navigator.clipboard.writeText(report).then(() => {
+        alert('Hlášení o negativním reverzu bylo zkopírováno do schránky pro vložení na Discord.');
+      });
+    }
+
+    function checkUrlForRecord() {
+      // Zobrazení existujícího záznamu
+      const params = new URLSearchParams(window.location.search);
+      const loadId = params.get('loadId');
+      if (loadId) {
+        try {
+          const records = JSON.parse(localStorage.getItem('zzs_records') || '[]');
+          const rec = records.find(r => r.id === loadId);
+          if (rec && rec.formData) {
+            const fd = rec.formData;
+            for (let k in fd) {
+              const el = document.getElementById(k.replace(/_/g, '-'));
+              if (el) {
+                if (el.type === 'checkbox') {
+                  el.checked = !!fd[k];
+                } else {
+                  el.value = fd[k];
+                }
+              }
+            }
+            document.getElementById('hdr-event-no').textContent = 'Výzva: ' + loadId;
+            document.getElementById('save-status').textContent = `Načten existující reverz ${loadId}`;
+            return;
+          }
+        } catch (e) {}
+      }
+
+      // Nový reverz: vygeneruj číslo, nastav aktuální datum/čas a propis přihlášenou posádku
+      const newNum = getNextSequenceNumber('REV');
+      document.getElementById('r-cislo').value = newNum;
+      document.getElementById('r-cas').value = new Date().toLocaleString('cs-CZ');
+      document.getElementById('hdr-event-no').textContent = 'Výzva: ' + newNum;
+
+      try {
+        const shift = JSON.parse(localStorage.getItem('zzs_active_shift') || 'null');
+        if (shift && shift.active) {
+          if (shift.vehicle) document.getElementById('r-vozidlo').value = shift.vehicle;
+          if (shift.paramedic) {
+            document.getElementById('r-zdravotnik').value = shift.paramedic;
+            document.getElementById('r-podpis-zzs').value = shift.paramedic;
+          }
+          if (shift.driver) document.getElementById('r-svedek-zzs').value = shift.driver + ' (řidič ZZS)';
+        }
+      } catch (e) {}
+    }
+
+    function loadDemoReverz() {
+      document.getElementById('r-cas').value = new Date().toLocaleString('cs-CZ');
+      document.getElementById('r-vozidlo').value = 'RZP-110';
+      document.getElementById('r-misto').value = 'Evropská 145/22, Praha 6';
+      document.getElementById('r-zdravotnik').value = 'Bc. Martin Dvořák (ev. č. 4589)';
+      document.getElementById('r-svedek-zzs').value = 'Karel Vlček (řidič ZZS)';
+      document.getElementById('r-pacient').value = 'Jan Novák';
+      document.getElementById('r-rc').value = '650812/1234';
+      document.getElementById('r-zp').value = '111 - VZP';
+      document.getElementById('r-bydliste').value = 'Evropská 145/22, Praha 6';
+      document.getElementById('r-odm-transport').checked = true;
+      document.getElementById('r-duvod').value = 'Cítí se dobře, odmítá čekání v nemocnici, zítra půjde ke svému lékaři.';
+      document.getElementById('r-vedomi').value = 'GCS 15, plně orientován místem, časem i osobou';
+      document.getElementById('r-alkohol').value = 'Bez známek ovlivnění alkoholem či omamnými látkami';
+      document.getElementById('r-schopnost').value = 'Pacient je plně schopen posoudit povahu i následky svého rozhodnutí';
+      document.getElementById('r-stav').value = 'Stav po krátkodobé synkopě v domácím prostředí, lehká kontuze levého spánku bez otevřené rány, t.č. normotenze.';
+      document.getElementById('r-rizika').value = 'Pacient byl výslovně a opakovaně varován, že odmítnutím nemocničního vyšetření hrozí nerozpoznání intrakraniálního krvácení, recidiva synkopy, závažné komplikace, trvalé následky či úmrtí.';
+      document.getElementById('r-svedek').value = 'Marie Nováková (manželka)';
+      document.getElementById('r-podpis-zzs').value = 'Bc. Martin Dvořák';
+
+      document.getElementById('save-status').textContent = 'Načten vzorový reverz';
+      alert('Vzorový negativní reverz byl načten.');
+    }
+
+    window.addEventListener('DOMContentLoaded', checkUrlForRecord);
+  </script>
+</body>
+</html>

@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Lékařská zpráva & Ohledání | ZZS PrahaRP</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #f4f6f8; color: #1b2a3a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; }
+    .lek-input { font-size: 12px; border: 1px solid #9fb7d4; border-radius: 3px; padding: 4px 8px; background-color: #fff; width: 100%; outline: none; }
+    .lek-input:focus { border-color: #1d72b8; box-shadow: 0 0 0 1px #1d72b8; }
+    .lek-label { font-size: 11px; color: #0b5394; font-weight: 600; margin-bottom: 2px; display: block; }
+    .lek-fieldset { border: 1px solid #b8cce4; border-radius: 4px; padding: 10px 14px 12px; margin-bottom: 12px; background: #fff; }
+    .lek-legend { font-size: 12px; font-weight: bold; color: #0b5394; padding: 0 6px; background: #fff; border-left: 3px solid #152b43; }
+
+    @media print {
+      body * { visibility: hidden; }
+      #print-protocol, #print-protocol * { visibility: visible; }
+      #print-protocol { position: absolute; left: 0; top: 0; width: 100%; display: block !important; }
+      .no-print { display: none !important; }
+      @page { size: A4; margin: 12mm; }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Horní navigační lišta -->
+  <header class="no-print bg-[#152b43] text-white px-4 py-2 flex items-center justify-between border-b-[3px] border-[#c4161c] shadow-sm">
+    <div class="flex items-center gap-3">
+      <a href="index.html" class="bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded text-xs font-semibold text-white transition">
+        ← Rozcestník
+      </a>
+      <a href="archiv.html" class="bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded text-xs font-semibold text-white transition">
+        📂 Kniha výjezdů
+      </a>
+      <span class="font-bold tracking-wide text-sm">ZZS PrahaRP | Lékařská zpráva & Koroner</span>
+    </div>
+    <div class="flex items-center gap-4 text-xs">
+      <span class="bg-blue-900/60 px-2 py-0.5 rounded font-mono font-bold" id="hdr-event-no">Zpráva: -</span>
+      <span class="flex items-center gap-1.5 pl-2 border-l border-white/40" id="hdr-shift-badge">
+        <span class="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
+        <span class="text-[11px] font-semibold" id="hdr-shift-text">Bez přihlášené posádky</span>
+      </span>
+    </div>
+  </header>
+
+  <!-- Lišta nástrojů -->
+  <nav class="no-print bg-[#e3ecf5] border-b border-[#b8cce4] px-4 py-1.5 flex flex-wrap items-center gap-2 shadow-sm text-xs">
+    <button type="button" onclick="saveLekarska()" class="px-3 py-1 bg-white border border-[#9fb7d4] rounded hover:bg-[#d8e6f3] font-semibold text-[#0b5394] flex items-center gap-1">
+      💾 Uložit do Knihy výjezdů
+    </button>
+    <button type="button" onclick="printProtocol()" class="px-3 py-1 bg-[#152b43] text-white rounded hover:bg-[#0e1f31] font-semibold flex items-center gap-1">
+      🖨️ Tisk lékařské zprávy (PDF)
+    </button>
+    <button type="button" onclick="copyDiscordReport()" class="px-3 py-1 bg-[#c4161c] text-white rounded hover:bg-[#a51117] font-semibold flex items-center gap-1">
+      📋 Kopírovat na Discord
+    </button>
+    <button type="button" onclick="loadDemoLekarska()" class="px-2.5 py-1 bg-gray-100 border border-gray-300 rounded text-gray-700 hover:bg-gray-200">
+      ⚡ Vzorová zpráva
+    </button>
+    <span class="ml-auto text-[11px] text-[#4a5b6e]" id="save-status">Stav: Nová zpráva</span>
+  </nav>
+
+  <!-- Hlavní formulář -->
+  <main class="flex-1 p-4 max-w-4xl w-full mx-auto no-print">
+
+    <!-- 1. Identifikace události a lékaře -->
+    <div class="lek-fieldset">
+      <span class="lek-legend">1. Identifikace události a ošetřujícího lékaře / koronera</span>
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-2">
+        <div>
+          <label class="lek-label">Číslo zprávy (Automatické)</label>
+          <input type="text" id="l-cislo" class="lek-input font-mono font-bold bg-blue-50/50" readonly placeholder="Generuje se automaticky...">
+        </div>
+        <div>
+          <label class="lek-label">Datum a čas vyšetření / ohledání *</label>
+          <input type="text" id="l-cas" class="lek-input font-semibold" placeholder="DD.MM.RRRR hh:mm">
+        </div>
+        <div>
+          <label class="lek-label">Vozidlo / Skupina (RV / RLP)</label>
+          <input type="text" id="l-vozidlo" class="lek-input font-semibold" placeholder="např. RV-101">
+        </div>
+        <div>
+          <label class="lek-label">Výjezdová základna</label>
+          <input type="text" id="l-zakladna" class="lek-input" placeholder="např. ZZS PrahaRP - Nádražní">
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+        <div>
+          <label class="lek-label">Lékař provádějící výkon / ohledání *</label>
+          <input type="text" id="l-lekar" class="lek-input font-semibold" placeholder="MUDr. Jméno Příjmení, evidenční číslo">
+        </div>
+        <div>
+          <label class="lek-label">Doprovodný zdravotník / PČR hlídka</label>
+          <input type="text" id="l-asistence" class="lek-input" placeholder="Záchranář ZZS nebo č. hlídky PČR">
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Identifikace pacienta / zemřelého -->
+    <div class="lek-fieldset">
+      <span class="lek-legend">2. Identifikace pacienta / prohlíženého těla</span>
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-2">
+        <div>
+          <label class="lek-label">Příjmení *</label>
+          <input type="text" id="l-prijmeni" class="lek-input font-bold" placeholder="Příjmení">
+        </div>
+        <div>
+          <label class="lek-label">Jméno *</label>
+          <input type="text" id="l-jmeno" class="lek-input font-bold" placeholder="Jméno">
+        </div>
+        <div>
+          <label class="lek-label">Rodné číslo / Datum nar. *</label>
+          <input type="text" id="l-rc" class="lek-input font-mono" placeholder="RRMMDD/XXXX">
+        </div>
+        <div>
+          <label class="lek-label">Věk / Pohlaví</label>
+          <input type="text" id="l-vek-pohlavi" class="lek-input" placeholder="např. 68 let, Muž">
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
+        <div>
+          <label class="lek-label">Zdravotní pojišťovna</label>
+          <input type="text" id="l-zp" class="lek-input" placeholder="např. 111 - VZP">
+        </div>
+        <div>
+          <label class="lek-label">Trvalé bydliště</label>
+          <input type="text" id="l-bydliste" class="lek-input" placeholder="Ulice, č.p., obec">
+        </div>
+        <div>
+          <label class="lek-label">Místo ošetření / nálezu těla *</label>
+          <input type="text" id="l-misto" class="lek-input font-semibold" placeholder="Přesná adresa události">
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Režim zprávy -->
+    <div class="lek-fieldset border-blue-300 bg-blue-50/20">
+      <span class="lek-legend">3. Režim a charakter lékařského nálezu</span>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
+        <div>
+          <label class="lek-label">Charakter dokumentu *</label>
+          <select id="l-typ-dokumentu" class="lek-input font-semibold">
+            <option value="Ohledání zemřelého (Protokol koronera)">Ohledání zemřelého (Protokol koronera)</option>
+            <option value="Lékařská zpráva z urgentního ošetření">Lékařská zpráva z urgentního ošetření</option>
+            <option value="Konziliární zpráva pro RZP posádku">Konziliární zpráva pro RZP posádku</option>
+          </select>
+        </div>
+        <div>
+          <label class="lek-label">Klasifikace úmrtí (pokud jde o ohledání)</label>
+          <select id="l-klasifikace-smrti" class="lek-input">
+            <option value="" selected>Nevyplněno (živý pacient)</option>
+            <option value="Úmrtí přirozené (bez cizího zavinění)">Úmrtí přirozené (bez cizího zavinění)</option>
+            <option value="Úmrtí náhlé / neočekávané">Úmrtí náhlé / neočekávané</option>
+            <option value="Násilná smrt / podezření na cizí zavinění">Násilná smrt / podezření na cizí zavinění</option>
+            <option value="Sebevražda (Suicidium)">Sebevražda (Suicidium)</option>
+            <option value="Úrazové úmrtí">Úrazové úmrtí</option>
+          </select>
+        </div>
+        <div>
+          <label class="lek-label">Nařízená pitva</label>
+          <select id="l-pitva" class="lek-input">
+            <option value="Pitva nenařízena (tělo uvolněno k pohřbení)">Pitva nenařízena (uvolněno k pohřbení)</option>
+            <option value="Zdravotní pitva (patologicko-anatomická)">Zdravotní pitva (patologická)</option>
+            <option value="Soudní pitva (dle trestního řádu / PČR)">Soudní pitva (PČR)</option>
+            <option value="Nepřichází v úvahu (živý pacient)">Nepřichází v úvahu (živý pacient)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Anamnéza, nález a známky smrti -->
+    <div class="lek-fieldset">
+      <span class="lek-legend">4. Anamnéza, objektivní nález a posouzení</span>
+      <div class="mt-2">
+        <label class="lek-label">Anamnéza a okolnosti události (OA, FA, nynější potíže / okolnosti nálezu)</label>
+        <textarea id="l-anamneza" rows="2" class="lek-input h-16" placeholder="Anamnestické údaje, časový průběh, svědci události..."></textarea>
+      </div>
+      <div class="mt-2">
+        <label class="lek-label">Objektivní klinický nález / Ohledání těla (posmrtné změny, ztuhlost, skvrny, poranění) *</label>
+        <textarea id="l-nalez" rows="4" class="lek-input h-24" placeholder="Podrobný nález lékaře, somatický status, přítomnost jistých známek smrti, stopy násilí..."></textarea>
+      </div>
+    </div>
+
+    <!-- 5. Diagnóza a závěr -->
+    <div class="lek-fieldset">
+      <span class="lek-legend">5. Diagnostický souhrn a závěr lékaře</span>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+        <div>
+          <label class="lek-label">Hlavní diagnóza / Příčina smrti (MKN-10) *</label>
+          <input type="text" id="l-mkn" class="lek-input font-bold" placeholder="např. I46.9 - Zástava srdce / R99 - Jiné nepřesně určené příčiny">
+        </div>
+        <div>
+          <label class="lek-label">Vedlejší diagnózy</label>
+          <input type="text" id="l-mkn-vedlejsi" class="lek-input" placeholder="např. I25.9 - Chronická ICHS">
+        </div>
+      </div>
+      <div class="mt-2">
+        <label class="lek-label">Závěrečné zhodnocení, doporučení a předání *</label>
+        <textarea id="l-zaver" rows="2" class="lek-input h-16" placeholder="Klinický závěr lékaře, transport pacienta / předání těla pohřební službě a PČR..."></textarea>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- TISKOVÁ SESTAVA: LÉKAŘSKÁ ZPRÁVA / PROTOKOL KORONERA (ZOBRAZÍ SE PŘI TISKU) -->
+  <div id="print-protocol" class="hidden p-6 font-sans text-black max-w-4xl mx-auto bg-white">
+    <div class="border-b-2 border-black pb-2 mb-3 flex justify-between items-start">
+      <div>
+        <h1 class="text-base font-bold uppercase tracking-wider">Zdravotnická záchranná služba</h1>
+        <p class="text-xs font-bold text-gray-800" id="pr-doc-title">LÉKAŘSKÁ ZPRÁVA / PROTOKOL O OHLEDÁNÍ ZEMŘELÉHO</p>
+      </div>
+      <div class="text-right text-xs">
+        <p>Číslo zprávy: <b id="pr-cislo" class="font-mono"></b></p>
+        <p>Datum a čas: <b id="pr-cas"></b></p>
+        <p>Vozidlo / Základna: <span id="pr-vozidlo"></span> | <span id="pr-zakladna"></span></p>
+      </div>
+    </div>
+
+    <!-- 1. Osoba -->
+    <div class="border border-gray-400 p-2 mb-2 text-xs leading-tight">
+      <div class="font-bold border-b border-gray-300 pb-0.5 mb-1 text-gray-800">1. IDENTIFIKACE VYŠETŘOVANÉ OSOBY</div>
+      <div class="grid grid-cols-2 gap-2">
+        <p>Jméno a příjmení: <b id="pr-pacient"></b></p>
+        <p>Rodné číslo: <b id="pr-rc"></b> (Věk / Pohlaví: <span id="pr-vek"></span>)</p>
+      </div>
+      <div class="grid grid-cols-2 gap-2 mt-1">
+        <p>Pojišťovna: <span id="pr-zp"></span></p>
+        <p>Trvalé bydliště: <span id="pr-bydliste"></span></p>
+      </div>
+      <p class="mt-1">Místo výkonu / nálezu těla: <b id="pr-misto"></b></p>
+    </div>
+
+    <!-- 2. Klasifikace -->
+    <div class="border border-gray-400 p-2 mb-2 text-xs leading-tight">
+      <div class="font-bold border-b border-gray-300 pb-0.5 mb-1 text-gray-800">2. REŽIM VÝKONU A KLASIFIKACE</div>
+      <div class="grid grid-cols-2 gap-2">
+        <p><b>Druh zprávy:</b> <span id="pr-charakter"></span></p>
+        <p><b>Klasifikace úmrtí:</b> <span id="pr-klasifikace"></span></p>
+      </div>
+      <div class="grid grid-cols-2 gap-2 mt-1">
+        <p><b>Nařízená pitva:</b> <span id="pr-pitva"></span></p>
+        <p><b>Součinnost / Asistence:</b> <span id="pr-asistence"></span></p>
+      </div>
+    </div>
+
+    <!-- 3. Anamnéza a nález -->
+    <div class="border border-gray-400 p-2 mb-2 text-xs leading-tight">
+      <div class="font-bold border-b border-gray-300 pb-0.5 mb-1 text-gray-800">3. ANAMNÉZA A NÁLEZ LÉKAŘE</div>
+      <p><b>Anamnestické údaje a okolnosti:</b></p>
+      <p class="bg-gray-50 p-1 rounded mt-0.5 mb-1 text-gray-700" id="pr-anamneza"></p>
+      <p><b>Objektivní somatický nález / Ohledání těla a známky smrti:</b></p>
+      <p class="bg-gray-50 p-1 border border-gray-200 rounded mt-0.5 font-mono text-[11px]" id="pr-nalez"></p>
+    </div>
+
+    <!-- 4. Diagnóza a závěr -->
+    <div class="border border-gray-400 p-2 mb-3 text-xs leading-tight">
+      <div class="font-bold border-b border-gray-300 pb-0.5 mb-1 text-gray-800">4. DIAGNÓZA A ZÁVĚR</div>
+      <div class="grid grid-cols-2 gap-2">
+        <p><b>Hlavní diagnóza / Příčina smrti:</b> <b id="pr-mkn"></b></p>
+        <p><b>Vedlejší diagnózy:</b> <span id="pr-mkn-vedlejsi"></span></p>
+      </div>
+      <p class="mt-1"><b>Závěr a další opatření:</b></p>
+      <p class="mt-0.5" id="pr-zaver"></p>
+
+      <div class="mt-8 pt-4 border-t border-gray-300 flex justify-between items-end text-xs">
+        <div>
+          <p>Místo a datum: <span id="pr-datum-vystaveni"></span></p>
+        </div>
+        <div class="text-center w-64">
+          <p class="border-t border-black pt-1">Razítko a podpis lékaře:<br><b id="pr-lekar-podpis"></b></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function getNextSequenceNumber(prefix = 'LEK') {
+      const year = new Date().getFullYear().toString().slice(-2);
+      const storageKey = `zzs_seq_${prefix}_${year}`;
+      let lastNum = parseInt(localStorage.getItem(storageKey) || '0', 10);
+      lastNum += 1;
+      return `${prefix}-${year}-${String(lastNum).padStart(3, '0')}`;
+    }
+
+    function confirmSequenceNumber(prefix = 'LEK') {
+      const year = new Date().getFullYear().toString().slice(-2);
+      const storageKey = `zzs_seq_${prefix}_${year}`;
+      let lastNum = parseInt(localStorage.getItem(storageKey) || '0', 10);
+      localStorage.setItem(storageKey, (lastNum + 1).toString());
+    }
+
+    function val(id, fallback = '') {
+      const el = document.getElementById(id);
+      if (!el) return fallback;
+      const v = (el.value || '').trim();
+      return v ? v : fallback;
+    }
+
+    function saveLekarska() {
+      const id = document.getElementById('l-cislo').value;
+      const jmeno = val('l-jmeno');
+      const prijmeni = val('l-prijmeni');
+      const pacient = [jmeno, prijmeni].filter(Boolean).join(' ') || 'Neznámá osoba';
+
+      const record = {
+        id: id,
+        type: 'LEKARSKA',
+        isClosed: true,
+        date: val('l-cas') || new Date().toLocaleString('cs-CZ'),
+        vehicle: val('l-vozidlo'),
+        patient: pacient,
+        rc: val('l-rc'),
+        diagnosis: val('l-mkn'),
+        formData: {
+          l_cislo: id, l_cas: val('l-cas'), l_vozidlo: val('l-vozidlo'), l_zakladna: val('l-zakladna'),
+          l_lekar: val('l-lekar'), l_asistence: val('l-asistence'), l_prijmeni: val('l-prijmeni'), l_jmeno: val('l-jmeno'),
+          l_rc: val('l-rc'), l_vek_pohlavi: val('l-vek-pohlavi'), l_zp: val('l-zp'), l_bydliste: val('l-bydliste'),
+          l_misto: val('l-misto'), l_typ_dokumentu: val('l-typ-dokumentu'), l_klasifikace_smrti: val('l-klasifikace-smrti'),
+          l_pitva: val('l-pitva'), l_anamneza: val('l-anamneza'), l_nalez: val('l-nalez'), l_mkn: val('l-mkn'),
+          l_mkn_vedlejsi: val('l-mkn-vedlejsi'), l_zaver: val('l-zaver')
+        }
+      };
+
+      let records = [];
+      try {
+        records = JSON.parse(localStorage.getItem('zzs_records') || '[]');
+      } catch (e) { records = []; }
+
+      const existingIndex = records.findIndex(r => r.id === id);
+      if (existingIndex >= 0) {
+        records[existingIndex] = record;
+      } else {
+        records.unshift(record);
+        confirmSequenceNumber('LEK');
+      }
+      localStorage.setItem('zzs_records', JSON.stringify(records));
+
+      document.getElementById('hdr-event-no').textContent = 'Zpráva: ' + id;
+      const st = document.getElementById('save-status');
+      st.textContent = `Uloženo do Knihy výjezdů (${new Date().toLocaleTimeString()})`;
+      st.className = 'ml-auto text-[11px] text-emerald-700 font-semibold';
+      alert(`Lékařská zpráva ${id} byla uložena do Knihy výjezdů.`);
+    }
+
+    function printProtocol() {
+      document.getElementById('pr-cislo').textContent = val('l-cislo', '-');
+      document.getElementById('pr-cas').textContent = val('l-cas', '-');
+      document.getElementById('pr-vozidlo').textContent = val('l-vozidlo', '-');
+      document.getElementById('pr-zakladna').textContent = val('l-zakladna', '-');
+
+      const jmeno = val('l-jmeno');
+      const prijmeni = val('l-prijmeni');
+      document.getElementById('pr-pacient').textContent = [jmeno, prijmeni].filter(Boolean).join(' ') || 'Neznámá osoba';
+      document.getElementById('pr-rc').textContent = val('l-rc', '-');
+      document.getElementById('pr-vek').textContent = val('l-vek-pohlavi', '-');
+      document.getElementById('pr-zp').textContent = val('l-zp', '-');
+      document.getElementById('pr-bydliste').textContent = val('l-bydliste', '-');
+      document.getElementById('pr-misto').textContent = val('l-misto', '-');
+
+      document.getElementById('pr-charakter').textContent = val('l-typ-dokumentu', '-');
+      document.getElementById('pr-klasifikace').textContent = val('l-klasifikace-smrti', 'Neuvádí se');
+      document.getElementById('pr-pitva').textContent = val('l-pitva', '-');
+      document.getElementById('pr-asistence').textContent = val('l-asistence', 'Neuvedena');
+
+      document.getElementById('pr-anamneza').textContent = val('l-anamneza', 'Bez dalších údajů');
+      document.getElementById('pr-nalez').textContent = val('l-nalez', 'Nebyl zaznamenán');
+
+      document.getElementById('pr-mkn').textContent = val('l-mkn', '-');
+      document.getElementById('pr-mkn-vedlejsi').textContent = val('l-mkn-vedlejsi', '-');
+      document.getElementById('pr-zaver').textContent = val('l-zaver', '-');
+
+      document.getElementById('pr-datum-vystaveni').textContent = new Date().toLocaleDateString('cs-CZ');
+      document.getElementById('pr-lekar-podpis').textContent = val('l-lekar', 'Lékař ZZS');
+
+      window.print();
+    }
+
+    function copyDiscordReport() {
+      const cislo = val('l-cislo', '-');
+      const cas = val('l-cas', '-');
+      const pacient = [val('l-jmeno'), val('l-prijmeni')].filter(Boolean).join(' ') || 'Neznámá osoba';
+      const typ = val('l-typ-dokumentu', 'Lékařská zpráva');
+      const dg = val('l-mkn', 'Neuvedena');
+      const lekar = val('l-lekar', 'Neuveden');
+
+      const report = `**🩺 ${typ.toUpperCase()} (ZZS PrahaRP)**
+**Číslo:** #${cislo} | **Čas:** ${cas}
+**Lékař:** ${lekar}
+**Osoba:** ${pacient}
+**Diagnóza / Příčina:** ${dg}
+**Závěr:** ${val('l-zaver', '-')}`;
+
+      navigator.clipboard.writeText(report).then(() => {
+        alert('Lékařská zpráva byla zkopírována do schránky pro Discord.');
+      });
+    }
+
+    function checkUrlForRecord() {
+      // 1. Zobrazení aktivní směny
+      let shift = null;
+      try { shift = JSON.parse(localStorage.getItem('zzs_active_shift') || 'null'); } catch(e){}
+
+      const badge = document.getElementById('hdr-shift-badge');
+      const text = document.getElementById('hdr-shift-text');
+      if (shift && shift.active) {
+        badge.querySelector('span').className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
+        text.textContent = `Služba: ${shift.vehicle} (${shift.paramedic})`;
+      } else {
+        badge.querySelector('span').className = 'w-2.5 h-2.5 rounded-full bg-gray-400';
+        text.textContent = `Bez přihlášené posádky`;
+      }
+
+      // 2. Kontrola načtení existujícího záznamu z Knihy výjezdů
+      const params = new URLSearchParams(window.location.search);
+      const loadId = params.get('loadId');
+      if (loadId) {
+        try {
+          const records = JSON.parse(localStorage.getItem('zzs_records') || '[]');
+          const rec = records.find(r => r.id === loadId);
+          if (rec && rec.formData) {
+            const fd = rec.formData;
+            for (let k in fd) {
+              const el = document.getElementById(k.replace(/_/g, '-'));
+              if (el) el.value = fd[k];
+            }
+            document.getElementById('hdr-event-no').textContent = 'Zpráva: ' + loadId;
+            document.getElementById('save-status').textContent = `Načten existující záznam ${loadId}`;
+            return;
+          }
+        } catch (e) {}
+      }
+
+      // 3. Nová zpráva: Generování sekvenčního čísla + PROPIS AKTIVNÍ SMĚNY
+      const newNum = getNextSequenceNumber('LEK');
+      document.getElementById('l-cislo').value = newNum;
+      document.getElementById('l-cas').value = new Date().toLocaleString('cs-CZ');
+      document.getElementById('hdr-event-no').textContent = 'Zpráva: ' + newNum;
+
+      if (shift && shift.active) {
+        if (shift.vehicle) document.getElementById('l-vozidlo').value = shift.vehicle;
+        if (shift.base) document.getElementById('l-zakladna').value = shift.base;
+        if (shift.physician) {
+          document.getElementById('l-lekar').value = shift.physician;
+        } else if (shift.paramedic) {
+          document.getElementById('l-lekar').value = shift.paramedic;
+        }
+        if (shift.driver) document.getElementById('l-asistence').value = shift.driver + ' (řidič ZZS)';
+      }
+    }
+
+    function loadDemoLekarska() {
+      document.getElementById('l-cas').value = new Date().toLocaleString('cs-CZ');
+      document.getElementById('l-vozidlo').value = 'RV-101 (Škoda Kodiaq)';
+      document.getElementById('l-zakladna').value = 'ZZS PrahaRP - Nádražní';
+      document.getElementById('l-lekar').value = 'MUDr. Jan Veselý (ev. č. 8920)';
+      document.getElementById('l-asistence').value = 'nprap. Dvořák (PČR KŘP Praha, hlídka 158)';
+      document.getElementById('l-prijmeni').value = 'Černý';
+      document.getElementById('l-jmeno').value = 'Karel';
+      document.getElementById('l-rc').value = '520311/045';
+      document.getElementById('l-vek-pohlavi').value = '73 let, Muž';
+      document.getElementById('l-zp').value = '111 - VZP';
+      document.getElementById('l-bydliste').value = 'Plzeňská 88, Praha 5';
+      document.getElementById('l-misto').value = 'Plzeňská 88, Praha 5, byt v 1. patře';
+      document.getElementById('l-typ-dokumentu').value = 'Ohledání zemřelého (Protokol koronera)';
+      document.getElementById('l-klasifikace-smrti').value = 'Úmrtí přirozené (bez cizího zavinění)';
+      document.getElementById('l-pitva').value = 'Pitva nenařízena (tělo uvolněno k pohřbení)';
+      document.getElementById('l-anamneza').value = 'Dlouhodobě léčen pro těžkou ICHS, stav po infarktu myokardu, těžká hypertenze. Nalezen synem sedící v křesle bez známek života.';
+      document.getElementById('l-nalez').value = 'Tělo chladné, plně vyvinutá posmrtná ztuhlost (rigor mortis) na čelistech a končetinách, posmrtné skvrny (livor mortis) na zádech a hýždích splývající, při tlaku blednoucí. Zornice areaktivní, mydriáza. Zevní prohlídkou žádné známky násilí ani cizího zavinění.';
+      document.getElementById('l-mkn').value = 'I46.9 - Náhlá srdeční zástava, nespecifikovaná';
+      document.getElementById('l-mkn-vedlejsi').value = 'I25.1 - Aterosklerotická nemoc srdce';
+      document.getElementById('l-zaver').value = 'Konstatována smrt v důsledku akutního kardiopulmonálního selhání na podkladě chronické ICHS. Tělo uvolněno k pohřbení. List o prohlídce zemřelého předán rodině a PČR.';
+
+      document.getElementById('save-status').textContent = 'Načtena vzorová zpráva';
+      alert('Vzorová lékařská zpráva koronera byla načtena.');
+    }
+
+    window.addEventListener('DOMContentLoaded', checkUrlForRecord);
+  </script>
+</body>
+</html>
