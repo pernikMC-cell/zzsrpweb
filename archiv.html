@@ -1,145 +1,287 @@
 <!DOCTYPE html>
-<html lang="cs">
+<html lang="cs" class="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Kniha výjezdů | Databáze ZZS</title>
-  <!-- Externí knihovny -->
+  <title>Kniha výjezdů a archiv | ZZS PrahaRP</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <script src="zzs-client.js"></script>
   <style>
-    body { background-color: #f4f6f8; color: #1b2a3a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; }
+    :root {
+      --bg-body: #f4f6f8;
+      --text-main: #1b2a3a;
+      --panel-bg: #ffffff;
+      --border-color: #d7dee7;
+      --thead-bg: #eef3f8;
+      --input-bg: #ffffff;
+      --input-text: #111827;
+      --row-hover: rgba(59, 130, 246, 0.06);
+    }
+
+    html.dark {
+      --bg-body: #0b1329;
+      --text-main: #f1f5f9;
+      --panel-bg: #1e293b;
+      --border-color: #334155;
+      --thead-bg: #0f172a;
+      --input-bg: #0f172a;
+      --input-text: #f8fafc;
+      --row-hover: rgba(56, 189, 248, 0.08);
+    }
+
+    body { 
+      background-color: var(--bg-body); 
+      color: var(--text-main); 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+      font-size: 13px; 
+      transition: background-color 0.2s, color 0.2s;
+    }
+    .arch-panel { background: var(--panel-bg); border: 1px solid var(--border-color); }
+    .arch-input { background: var(--input-bg); color: var(--input-text); border: 1px solid var(--border-color); }
+    .arch-row:hover { background-color: var(--row-hover); }
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
 
+  <!-- Navigační lišta -->
   <header class="bg-[#152b43] text-white px-4 py-2 flex items-center justify-between border-b-[3px] border-[#c4161c] shadow-sm">
     <div class="flex items-center gap-3">
       <a href="index.html" class="bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded text-xs font-semibold transition">
         ← Zpět na rozcestník
       </a>
-      <span class="font-bold tracking-wide text-sm sm:text-base">Kniha výjezdů – Centrální databáze (SQLite)</span>
+      <a href="dispecink.html" class="bg-amber-600 hover:bg-amber-700 px-2.5 py-1 rounded text-xs font-semibold transition">
+        📻 Dispečink ZOS
+      </a>
+      <span class="font-bold tracking-wide text-sm sm:text-base">Kniha výjezdů a centrální archiv ZZS</span>
     </div>
-    <div class="flex items-center gap-2">
-      <a href="zov.html" class="bg-[#3aaed8] hover:bg-[#2980b9] text-white px-2.5 py-1 rounded text-xs font-semibold transition">+ Nový ZOV</a>
-      <a href="reverz.html" class="bg-[#c4161c] hover:bg-[#a51117] text-white px-2.5 py-1 rounded text-xs font-semibold transition">+ Negativní reverz</a>
+    <div class="flex flex-wrap items-center gap-2">
+      <a href="zov.html" class="bg-[#3aaed8] hover:bg-[#2980b9] text-white px-2.5 py-1 rounded text-xs font-semibold transition">
+        + Nový ZOV
+      </a>
+      <a href="lekarska.html" class="bg-purple-700 hover:bg-purple-800 text-white px-2.5 py-1 rounded text-xs font-semibold transition">
+        + Lékař / Koroner
+      </a>
+      <a href="reverz.html" class="bg-[#c4161c] hover:bg-[#a51117] text-white px-2.5 py-1 rounded text-xs font-semibold transition">
+        + Nový reverz
+      </a>
+      <button type="button" onclick="toggleTheme()" class="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/20 px-2.5 py-1 rounded text-xs font-semibold transition">
+        <span id="theme-icon">🌙</span>
+        <span id="theme-text">Tmavý režim</span>
+      </button>
     </div>
   </header>
 
+  <!-- Hlavní obsah archivu -->
   <main class="flex-1 p-4 sm:p-6 max-w-6xl w-full mx-auto">
-    <div class="bg-white border border-[#d7dee7] rounded-lg p-5 shadow-sm flex flex-col gap-4">
+    <div class="arch-panel rounded-lg p-5 shadow-sm flex flex-col gap-4">
       
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-200 pb-4">
+      <!-- Filtry a akce -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4" style="border-color: var(--border-color);">
         <div>
-          <h1 class="text-xl font-bold text-[#152b43]">Centrální evidence výjezdů ZZS</h1>
-          <p class="text-xs text-gray-500">Záznamy jsou uloženy na serveru v databázi <code class="bg-gray-100 px-1 rounded">zzs.db</code> a synchronizovány v reálném čase.</p>
+          <h1 class="text-xl font-bold text-sky-600 dark:text-sky-400">Evidované záznamy ZZS</h1>
+          <p class="text-xs opacity-75">Záznamy se synchronizují s centrální databází i lokální pamětí. Můžete je kdykoliv otevřít, upravit nebo vytisknout.</p>
         </div>
         <div class="flex items-center gap-2">
-          <input type="text" id="filter-input" oninput="renderTable()" placeholder="Hledat v databázi..." class="border border-gray-300 rounded px-3 py-1.5 text-xs w-60 outline-none focus:border-[#1d72b8]">
-          <button onclick="loadFromDatabase()" class="px-2.5 py-1.5 bg-gray-100 border border-gray-300 rounded text-xs font-semibold hover:bg-gray-200">
-            🔄 Obnovit z DB
+          <input type="text" id="filter-input" oninput="renderArchiveTable()" placeholder="Hledat (pacient, číslo, RČ, diagnóza)..." class="arch-input rounded px-3 py-1.5 text-xs w-60 outline-none focus:border-sky-500">
+          <button onclick="loadAllRecords()" class="px-2.5 py-1.5 border rounded text-xs font-semibold hover:opacity-80 transition" style="border-color: var(--border-color);">
+            🔄 Obnovit
+          </button>
+          <button onclick="exportBackup()" class="px-2.5 py-1.5 border rounded text-xs font-semibold hover:opacity-80 transition" style="border-color: var(--border-color);" title="Zálohovat všechny záznamy do souboru JSON">
+            💾 Záloha
           </button>
         </div>
       </div>
 
-      <div class="overflow-x-auto border border-gray-200 rounded-md">
-        <table class="w-full text-left text-xs bg-white">
-          <thead class="bg-[#eef3f8] text-[#152b43] font-bold border-b border-gray-200">
+      <!-- Tabulka záznamů -->
+      <div class="overflow-x-auto border rounded-md" style="border-color: var(--border-color);">
+        <table class="w-full text-left text-xs">
+          <thead class="font-bold border-b" style="background-color: var(--thead-bg); border-color: var(--border-color);">
             <tr>
               <th class="p-2.5">Číslo záznamu</th>
               <th class="p-2.5">Typ</th>
               <th class="p-2.5">Datum a čas</th>
-              <th class="p-2.5">Vozidlo</th>
-              <th class="p-2.5">Pacient (RČ)</th>
-              <th class="p-2.5">Diagnóza / Předmět</th>
+              <th class="p-2.5">Vozidlo / Posádka</th>
+              <th class="p-2.5">Pacient / Osoba (RČ)</th>
+              <th class="p-2.5">Diagnóza / Předmět / Nález</th>
               <th class="p-2.5 text-right">Akce</th>
             </tr>
           </thead>
-          <tbody id="archive-tbody" class="divide-y divide-gray-100">
-            <tr><td colspan="7" class="p-4 text-center text-gray-400">Načítám data z databáze...</td></tr>
+          <tbody id="archive-tbody" class="divide-y" style="border-color: var(--border-color);">
+            <!-- Vkládáno dynamicky -->
           </tbody>
         </table>
       </div>
 
-      <div class="flex items-center justify-between text-xs text-gray-500 pt-2">
+      <!-- Informační patička -->
+      <div class="flex items-center justify-between text-xs opacity-70 pt-2">
         <span id="record-count">Celkem záznamů: 0</span>
-        <span>Režim: Centrální databáze (WebSocket Live)</span>
+        <span id="db-sync-status">Režim: Centrální databáze + Lokální paměť</span>
       </div>
     </div>
   </main>
 
   <script>
-    let cachedRecords = [];
-
-    async function loadFromDatabase() {
-      try {
-        const res = await fetch(`${ZZS_SERVER_URL}/api/records`);
-        cachedRecords = await res.json();
-        renderTable();
-      } catch (e) {
-        document.getElementById('archive-tbody').innerHTML = `
-          <tr><td colspan="7" class="p-4 text-center text-red-600">Nelze se spojit s databázovým serverem (${ZZS_SERVER_URL}). Ujistěte se, že běží server.js.</td></tr>
-        `;
-      }
+    function initTheme() {
+      const savedTheme = localStorage.getItem('zzs_theme') || 'light';
+      applyTheme(savedTheme);
     }
 
-    function renderTable() {
+    function applyTheme(theme) {
+      const html = document.documentElement;
+      const icon = document.getElementById('theme-icon');
+      const text = document.getElementById('theme-text');
+      if (theme === 'dark') {
+        html.classList.add('dark');
+        html.classList.remove('light');
+        if (icon) icon.textContent = '☀️';
+        if (text) text.textContent = 'Světlý režim';
+      } else {
+        html.classList.remove('dark');
+        html.classList.add('light');
+        if (icon) icon.textContent = '🌙';
+        if (text) text.textContent = 'Tmavý režim';
+      }
+      localStorage.setItem('zzs_theme', theme);
+    }
+
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.contains('dark');
+      applyTheme(isDark ? 'light' : 'dark');
+    }
+
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const SERVER_URL = isLocal 
+      ? (window.location.protocol + '//' + window.location.hostname + (window.location.port ? ':' + window.location.port : ':2584'))
+      : window.location.origin;
+
+    let socket = null;
+    try {
+      socket = io(SERVER_URL, { transports: ['websocket', 'polling'], timeout: 3000 });
+      socket.on('record:saved', () => loadAllRecords());
+      socket.on('record:deleted', () => loadAllRecords());
+    } catch(e) {}
+
+    let allRecords = [];
+
+    async function loadAllRecords() {
+      let dbRecords = [];
+      let localRecords = [];
+
+      try {
+        localRecords = JSON.parse(localStorage.getItem('zzs_records') || '[]');
+      } catch (e) { localRecords = []; }
+
+      try {
+        const res = await fetch(`${SERVER_URL}/api/records`);
+        if (res.ok) {
+          dbRecords = await res.json();
+          document.getElementById('db-sync-status').textContent = '🟢 Synchronizováno s centrální databází';
+        }
+      } catch (e) {
+        document.getElementById('db-sync-status').textContent = '🟠 Lokální režim (DB nedostupná)';
+      }
+
+      // Sloučení záznamů z DB a localStorage podle ID bez duplicit
+      const map = new Map();
+      [...dbRecords, ...localRecords].forEach(r => {
+        if (r && r.id && !map.has(r.id)) map.set(r.id, r);
+      });
+      allRecords = Array.from(map.values());
+      renderArchiveTable();
+    }
+
+    function renderArchiveTable() {
       const tbody = document.getElementById('archive-tbody');
       const filter = (document.getElementById('filter-input').value || '').toLowerCase().trim();
       tbody.innerHTML = '';
 
-      const filtered = cachedRecords.filter(r => {
+      const filtered = allRecords.filter(r => {
         if (!filter) return true;
-        return `${r.id} ${r.type} ${r.patient} ${r.rc} ${r.vehicle} ${r.diagnosis || ''}`.toLowerCase().includes(filter);
+        const text = `${r.id} ${r.type} ${r.patient} ${r.rc} ${r.vehicle} ${r.diagnosis || ''} ${r.reason || ''}`.toLowerCase();
+        return text.includes(filter);
       });
 
-      document.getElementById('record-count').textContent = `Zobrazeno záznamů: ${filtered.length}`;
+      document.getElementById('record-count').textContent = `Celkem nalezeno: ${filtered.length} z ${allRecords.length}`;
 
       if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-gray-400 italic">V databázi nebyl nalezen žádný odpovídající záznam.</td></tr>`;
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" class="p-6 text-center opacity-60 italic">
+              Zatím nebyl uložen žádný záznam. Vyplněním nového výjezdu, reverzu nebo lékařské zprávy se automaticky zařadí do této knihy.
+            </td>
+          </tr>
+        `;
         return;
       }
 
       filtered.forEach(r => {
         const tr = document.createElement('tr');
-        tr.className = 'hover:bg-blue-50/40 transition';
+        tr.className = 'arch-row transition border-b';
+        tr.style.borderColor = 'var(--border-color)';
 
-        let badge = r.type === 'ZOV' 
-          ? '<span class="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded text-[10px]">ZOV</span>'
-          : '<span class="bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded text-[10px]">REVERZ</span>';
+        let badge = '';
+        let openUrl = '';
 
-        const openUrl = r.type === 'ZOV' ? `zov.html?loadId=${encodeURIComponent(r.id)}` : `reverz.html?loadId=${encodeURIComponent(r.id)}`;
+        if (r.type === 'ZOV') {
+          badge = '<span class="bg-blue-600 text-white font-bold px-2 py-0.5 rounded text-[10px]">ZOV</span>';
+          openUrl = `zov.html?loadId=${encodeURIComponent(r.id)}`;
+        } else if (r.type === 'REVERZ') {
+          badge = '<span class="bg-red-600 text-white font-bold px-2 py-0.5 rounded text-[10px]">REVERZ</span>';
+          openUrl = `reverz.html?loadId=${encodeURIComponent(r.id)}`;
+        } else {
+          badge = '<span class="bg-purple-600 text-white font-bold px-2 py-0.5 rounded text-[10px]">LÉKAŘ / KORONER</span>';
+          openUrl = `lekarska.html?loadId=${encodeURIComponent(r.id)}`;
+        }
 
         tr.innerHTML = `
-          <td class="p-2.5 font-mono font-bold text-[#0b5394]">${r.id}</td>
+          <td class="p-2.5 font-mono font-bold text-sky-600 dark:text-sky-400">${r.id}</td>
           <td class="p-2.5">${badge}</td>
-          <td class="p-2.5 text-gray-600 whitespace-nowrap">${r.date || '-'}</td>
+          <td class="p-2.5 opacity-80 whitespace-nowrap">${r.date || '-'}</td>
           <td class="p-2.5 font-medium">${r.vehicle || '-'}</td>
-          <td class="p-2.5 font-bold">${r.patient || 'Neznámý'} <span class="font-normal text-gray-500 font-mono text-[11px]">(${r.rc || '-'})</span></td>
-          <td class="p-2.5 text-gray-700 truncate max-w-xs">${r.diagnosis || '-'}</td>
+          <td class="p-2.5 font-bold">${r.patient || 'Neznámý'} <span class="font-normal opacity-70 font-mono text-[11px]">(${r.rc || '-'})</span></td>
+          <td class="p-2.5 opacity-90 truncate max-w-xs">${r.diagnosis || r.reason || '-'}</td>
           <td class="p-2.5 text-right space-x-1 whitespace-nowrap">
-            <a href="${openUrl}" class="px-2.5 py-1 bg-[#152b43] text-white rounded hover:bg-[#0e1f31] font-semibold text-[11px] transition">Otevřít</a>
-            <button onclick="deleteFromDb('${r.id}')" class="px-2 py-1 bg-red-50 text-red-700 border border-red-200 rounded hover:bg-red-100 font-semibold text-[11px] transition">Smazat</button>
+            <a href="${openUrl}" class="px-2.5 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold text-[11px] transition">
+              Otevřít
+            </a>
+            <button onclick="deleteRecord('${r.id}')" class="px-2 py-1 bg-red-500/15 text-red-500 border border-red-500/30 rounded hover:bg-red-500/25 font-semibold text-[11px] transition">
+              Smazat
+            </button>
           </td>
         `;
         tbody.appendChild(tr);
       });
     }
 
-    function deleteFromDb(id) {
-      if (confirm(`Opravdu chcete trvale smazat záznam ${id} z databáze?`)) {
-        socket.emit('record:delete', id, (res) => {
-          if (res.success) loadFromDatabase();
-        });
+    function deleteRecord(id) {
+      if (confirm(`Opravdu chcete smazat záznam ${id}?`)) {
+        let localRecords = [];
+        try { localRecords = JSON.parse(localStorage.getItem('zzs_records') || '[]'); } catch(e){}
+        localRecords = localRecords.filter(r => r.id !== id);
+        localStorage.setItem('zzs_records', JSON.stringify(localRecords));
+
+        if (socket && socket.connected) {
+          socket.emit('record:delete', id, () => loadAllRecords());
+        } else {
+          loadAllRecords();
+        }
       }
     }
 
-    // Okamžitá aktualizace při uložení nového záznamu na libovolném zařízení
-    socket.on('record:saved', () => loadFromDatabase());
-    socket.on('record:deleted', () => loadFromDatabase());
+    function exportBackup() {
+      const data = JSON.stringify(allRecords, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `zzs_archiv_zaloha_${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+    }
 
-    window.addEventListener('DOMContentLoaded', loadFromDatabase);
+    window.addEventListener('DOMContentLoaded', () => {
+      initTheme();
+      loadAllRecords();
+    });
   </script>
 </body>
 </html>
