@@ -150,9 +150,7 @@
     }
 
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const SERVER_URL = isLocal 
-      ? (window.location.protocol + '//' + window.location.hostname + (window.location.port ? ':' + window.location.port : ':2584'))
-      : window.location.origin;
+    const SERVER_URL = "https://37.60.241.137:2584/";
 
     let socket = null;
     try {
